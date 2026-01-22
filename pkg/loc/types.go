@@ -4,6 +4,7 @@ package loc
 type Language struct {
 	Name              string   // e.g., "Go", "Python", "Templ"
 	Extensions        []string // e.g., [".go"], [".py", ".pyw"], [".templ"]
+	Filenames         []string // e.g., ["Makefile", "Dockerfile"] - specific filenames without extensions
 	LineComment       string   // e.g., "//", "#"
 	BlockCommentStart string   // e.g., "/*", "\"\"\""
 	BlockCommentEnd   string   // e.g., "*/", "\"\"\""

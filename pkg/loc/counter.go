@@ -95,39 +95,12 @@ func isTestFile(path string) bool {
 	return false
 }
 
-// otherFileExtensions are file extensions that are considered "other" (config, docs, etc.)
-// These are only included when the --all flag is set.
-var otherFileExtensions = map[string]bool{
-	// Config/Data files
-	".yaml":       true,
-	".yml":        true,
-	".json":       true,
-	".toml":       true,
-	".ini":        true,
-	".cfg":        true,
-	".xml":        true,
-	".properties": true,
-
-	// Documentation files
-	".md":       true,
-	".markdown": true,
-	".rst":      true,
-	".txt":      true,
-}
-
-// isOtherFile determines if a file is a non-source file (config, docs, etc.)
-// based on its extension
-func isOtherFile(path string) bool {
-	ext := strings.ToLower(filepath.Ext(path))
-	return otherFileExtensions[ext]
-}
-
 // categorizeFile determines the category of a file (src, test, or other)
 func categorizeFile(path string) FileCategory {
 	if isTestFile(path) {
 		return FileCategoryTest
 	}
-	if isOtherFile(path) {
+	if IsOtherFile(path) {
 		return FileCategoryOther
 	}
 	return FileCategorySrc
@@ -233,15 +206,8 @@ func (c *Counter) countFile(path string) (*FileResult, error) {
 		return nil, err
 	}
 
-	// Determine language from extension
-	ext := filepath.Ext(path)
-	// Handle compound extensions like .blade.php
-	base := filepath.Base(path)
-	if strings.HasSuffix(strings.ToLower(base), ".blade.php") {
-		ext = ".blade.php"
-	}
-
-	lang := GetLanguageByExtension(ext)
+	// Determine language from filename or extension
+	lang := GetLanguageForFile(path)
 	langName := "Unknown"
 	if lang != nil {
 		langName = lang.Name

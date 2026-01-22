@@ -258,16 +258,101 @@ var languages = []*Language{
 		LineComment: "%",
 		// No standard block comment
 	},
+
+	// Non-source languages (config, docs, build files)
+	// These are only included when --all flag is set
+	{
+		Name:        "YAML",
+		Extensions:  []string{".yaml", ".yml"},
+		LineComment: "#",
+		// No standard block comment
+	},
+	{
+		Name:              "JSON",
+		Extensions:        []string{".json"},
+		LineComment:       "",
+		BlockCommentStart: "",
+		BlockCommentEnd:   "",
+		// JSON has no comment syntax
+	},
+	{
+		Name:        "TOML",
+		Extensions:  []string{".toml"},
+		LineComment: "#",
+		// No standard block comment
+	},
+	{
+		Name:        "INI",
+		Extensions:  []string{".ini", ".cfg"},
+		LineComment: ";",
+		// No standard block comment (some variants use # too)
+	},
+	{
+		Name:              "XML",
+		Extensions:        []string{".xml"},
+		LineComment:       "",
+		BlockCommentStart: "<!--",
+		BlockCommentEnd:   "-->",
+	},
+	{
+		Name:        "Properties",
+		Extensions:  []string{".properties"},
+		LineComment: "#",
+		// No standard block comment
+	},
+	{
+		Name:              "Markdown",
+		Extensions:        []string{".md", ".markdown"},
+		LineComment:       "",
+		BlockCommentStart: "",
+		BlockCommentEnd:   "",
+		// Markdown has no comment syntax
+	},
+	{
+		Name:        "reStructuredText",
+		Extensions:  []string{".rst"},
+		LineComment: "..",
+		// No standard block comment
+	},
+	{
+		Name:              "Text",
+		Extensions:        []string{".txt"},
+		LineComment:       "",
+		BlockCommentStart: "",
+		BlockCommentEnd:   "",
+		// Plain text has no comment syntax
+	},
+	{
+		Name:        "Makefile",
+		Extensions:  []string{".mk"},
+		Filenames:   []string{"Makefile"},
+		LineComment: "#",
+		// No standard block comment
+	},
+	{
+		Name:        "Dockerfile",
+		Extensions:  []string{},
+		Filenames:   []string{"Dockerfile"},
+		LineComment: "#",
+		// No standard block comment
+	},
 }
 
 // extensionMap provides fast lookup from extension to language
 var extensionMap map[string]*Language
 
+// filenameMap provides fast lookup from specific filename to language
+var filenameMap map[string]*Language
+
 func init() {
 	extensionMap = make(map[string]*Language)
+	filenameMap = make(map[string]*Language)
 	for _, lang := range languages {
 		for _, ext := range lang.Extensions {
 			extensionMap[ext] = lang
+		}
+		for _, filename := range lang.Filenames {
+			filenameMap[filename] = lang
 		}
 	}
 }
@@ -280,10 +365,44 @@ func GetLanguageByExtension(ext string) *Language {
 	return extensionMap[ext]
 }
 
-// IsSourceFile returns true if the file extension is a known source file.
-func IsSourceFile(path string) bool {
-	// Handle compound extensions like .blade.php
+// GetLanguageByFilename returns the Language for a specific filename (e.g., "Makefile", "Dockerfile").
+// Returns nil if the filename is not recognized.
+func GetLanguageByFilename(filename string) *Language {
+	return filenameMap[filename]
+}
+
+// GetLanguageForFile returns the Language for a file path, checking both filename and extension.
+// Returns nil if the file is not recognized.
+func GetLanguageForFile(path string) *Language {
 	base := filepath.Base(path)
+
+	// Check for specific filenames first
+	if lang := filenameMap[base]; lang != nil {
+		return lang
+	}
+
+	// Handle compound extensions like .blade.php
+	if strings.HasSuffix(strings.ToLower(base), ".blade.php") {
+		return extensionMap[".blade.php"]
+	}
+
+	// Check by extension
+	ext := strings.ToLower(filepath.Ext(path))
+	return extensionMap[ext]
+}
+
+// IsSourceFile returns true if the file extension is a known source file
+// (excluding "other" files like config, docs, and build files).
+func IsSourceFile(path string) bool {
+	base := filepath.Base(path)
+
+	// Check if this is an "other" file first (config, docs, build files)
+	// These are not considered source files
+	if otherFileNames[base] || otherFileExtensions[strings.ToLower(filepath.Ext(path))] {
+		return false
+	}
+
+	// Handle compound extensions like .blade.php
 	if strings.HasSuffix(strings.ToLower(base), ".blade.php") {
 		return true
 	}
@@ -292,6 +411,51 @@ func IsSourceFile(path string) bool {
 		return false
 	}
 	return extensionMap[ext] != nil
+}
+
+// otherFileExtensions are file extensions that are considered "other" (config, docs, etc.)
+// These are only included when the --all flag is set.
+var otherFileExtensions = map[string]bool{
+	// Config/Data files
+	".yaml":       true,
+	".yml":        true,
+	".json":       true,
+	".toml":       true,
+	".ini":        true,
+	".cfg":        true,
+	".xml":        true,
+	".properties": true,
+
+	// Documentation files
+	".md":       true,
+	".markdown": true,
+	".rst":      true,
+	".txt":      true,
+
+	// Build files
+	".mk": true,
+}
+
+// otherFileNames are specific filenames that are considered "other" (config, build, etc.)
+// These are only included when the --all flag is set.
+var otherFileNames = map[string]bool{
+	"Makefile":   true,
+	"Dockerfile": true,
+}
+
+// IsOtherFile returns true if the file is a non-source file (config, docs, build files, etc.)
+// that should be included when the --all flag is set.
+func IsOtherFile(path string) bool {
+	base := filepath.Base(path)
+
+	// Check for specific filenames first
+	if otherFileNames[base] {
+		return true
+	}
+
+	// Check for extensions
+	ext := strings.ToLower(filepath.Ext(path))
+	return otherFileExtensions[ext]
 }
 
 // GetAllLanguages returns a copy of all registered languages.

@@ -142,8 +142,10 @@ func (s *Scanner) isIncluded(absPath string, relPath string) bool {
 			return false
 		}
 	} else {
-		// No include patterns: only include recognized source files
-		if !IsSourceFile(absPath) {
+		// No include patterns: include recognized source files, and "other" files when --all is set
+		isSource := IsSourceFile(absPath)
+		isOther := IsOtherFile(absPath)
+		if !isSource && !(s.config.All && isOther) {
 			return false
 		}
 	}
