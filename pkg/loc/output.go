@@ -78,21 +78,21 @@ func formatPretty(summary *Summary, config *OutputConfig) string {
 
 	// Show breakdowns if requested
 	if config.ByLanguage && len(summary.ByLanguage) > 0 {
-		sb.WriteString(formatLanguageTable(summary))
+		sb.WriteString(formatLanguageTable(summary, config))
 	}
 
 	if config.ByDir && len(summary.ByDirectory) > 0 {
 		if sb.Len() > 0 {
 			sb.WriteString("\n")
 		}
-		sb.WriteString(formatDirectoryTable(summary))
+		sb.WriteString(formatDirectoryTable(summary, config))
 	}
 
 	if config.ByPackage && len(summary.ByPackage) > 0 {
 		if sb.Len() > 0 {
 			sb.WriteString("\n")
 		}
-		sb.WriteString(formatPackageTable(summary))
+		sb.WriteString(formatPackageTable(summary, config))
 	}
 
 	return sb.String()
@@ -131,9 +131,15 @@ func formatSummaryTable(summary *Summary, config *OutputConfig) string {
 	return t.Render() + "\n"
 }
 
-// formatLanguageTable creates a pretty table for language breakdown
-func formatLanguageTable(summary *Summary) string {
-	var sb strings.Builder
+// formatLanguageTable creates a pretty table for language breakdown using Charmbracelet lipgloss/table
+func formatLanguageTable(summary *Summary, config *OutputConfig) string {
+	// Get appropriate styles based on NoColor setting
+	var styles *Styles
+	if config.NoColor {
+		styles = NoColorStyles()
+	} else {
+		styles = DefaultStyles()
+	}
 
 	// Get sorted language names
 	languages := make([]string, 0, len(summary.ByLanguage))
@@ -142,98 +148,86 @@ func formatLanguageTable(summary *Summary) string {
 	}
 	sort.Strings(languages)
 
-	// Calculate column widths
-	langWidth := 10 // minimum width for "Language"
-	filesWidth := 5
-	linesWidth := 7
-	codeWidth := 6
-	commentsWidth := 8
+	// Calculate total code for percentage calculation
+	totalCode := summary.TotalCode
+
+	// Build rows
+	rows := make([][]string, 0, len(languages)+1)
+	var totalFiles, totalCodeSum, totalComments int
 
 	for _, lang := range languages {
 		stats := summary.ByLanguage[lang]
-		if len(lang) > langWidth {
-			langWidth = len(lang)
+		totalFiles += stats.Files
+		totalCodeSum += stats.Code
+		totalComments += stats.Comments
+
+		// Calculate percentage
+		var pct float64
+		if totalCode > 0 {
+			pct = float64(stats.Code) / float64(totalCode) * 100
 		}
-		if w := len(formatNumber(stats.Files)); w > filesWidth {
-			filesWidth = w
-		}
-		if w := len(formatNumber(stats.Lines)); w > linesWidth {
-			linesWidth = w
-		}
-		if w := len(formatNumber(stats.Code)); w > codeWidth {
-			codeWidth = w
-		}
-		if w := len(formatNumber(stats.Comments)); w > commentsWidth {
-			commentsWidth = w
-		}
+
+		rows = append(rows, []string{
+			lang,
+			formatNumber(stats.Files),
+			formatNumber(stats.Code),
+			formatNumber(stats.Comments),
+			fmt.Sprintf("%.1f%%", pct),
+		})
 	}
 
-	sb.WriteString("  By Language\n")
+	// Add totals row
+	rows = append(rows, []string{
+		"Total",
+		formatNumber(totalFiles),
+		formatNumber(totalCodeSum),
+		formatNumber(totalComments),
+		"100.0%",
+	})
 
-	// Top border
-	sb.WriteString("  +")
-	sb.WriteString(strings.Repeat("-", langWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", filesWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", linesWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", codeWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", commentsWidth+2))
-	sb.WriteString("+\n")
+	// Create the table with rounded borders
+	t := table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(styles.Border).
+		Headers("Language", "Files", "Code", "Comments", "%")
 
-	// Header row
-	sb.WriteString(fmt.Sprintf("  | %-*s | %*s | %*s | %*s | %*s |\n",
-		langWidth, "Language",
-		filesWidth, "Files",
-		linesWidth, "Lines",
-		codeWidth, "Code",
-		commentsWidth, "Comments"))
-
-	// Header separator
-	sb.WriteString("  +")
-	sb.WriteString(strings.Repeat("-", langWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", filesWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", linesWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", codeWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", commentsWidth+2))
-	sb.WriteString("+\n")
-
-	// Data rows
-	for _, lang := range languages {
-		stats := summary.ByLanguage[lang]
-		sb.WriteString(fmt.Sprintf("  | %-*s | %*s | %*s | %*s | %*s |\n",
-			langWidth, lang,
-			filesWidth, formatNumber(stats.Files),
-			linesWidth, formatNumber(stats.Lines),
-			codeWidth, formatNumber(stats.Code),
-			commentsWidth, formatNumber(stats.Comments)))
+	// Add all rows
+	for _, row := range rows {
+		t.Row(row...)
 	}
 
-	// Bottom border
-	sb.WriteString("  +")
-	sb.WriteString(strings.Repeat("-", langWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", filesWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", linesWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", codeWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", commentsWidth+2))
-	sb.WriteString("+\n")
+	// Style the table: header centered, first column left-aligned, rest right-aligned
+	t.StyleFunc(func(row, col int) lipgloss.Style {
+		if row == table.HeaderRow {
+			return styles.Label.Padding(0, 1).Align(lipgloss.Center)
+		}
+		// First column (name) left-aligned
+		if col == 0 {
+			// Use TotalLabel style for the totals row
+			if row == len(rows)-1 {
+				return styles.TotalLabel.Padding(0, 1).Align(lipgloss.Left)
+			}
+			return styles.Number.Padding(0, 1).Align(lipgloss.Left)
+		}
+		// Numeric columns right-aligned
+		if row == len(rows)-1 {
+			return styles.TotalNumber.Padding(0, 1).Align(lipgloss.Right)
+		}
+		return styles.Number.Padding(0, 1).Align(lipgloss.Right)
+	})
 
-	return sb.String()
+	return styles.SectionTitle.Render("By Language") + "\n" + t.Render() + "\n"
 }
 
-// formatDirectoryTable creates a pretty table for directory breakdown
-func formatDirectoryTable(summary *Summary) string {
-	var sb strings.Builder
+// formatDirectoryTable creates a pretty table for directory breakdown using Charmbracelet lipgloss/table
+func formatDirectoryTable(summary *Summary, config *OutputConfig) string {
+	// Get appropriate styles based on NoColor setting
+	var styles *Styles
+	if config.NoColor {
+		styles = NoColorStyles()
+	} else {
+		styles = DefaultStyles()
+	}
 
 	// Get sorted directory paths
 	dirs := make([]string, 0, len(summary.ByDirectory))
@@ -242,74 +236,86 @@ func formatDirectoryTable(summary *Summary) string {
 	}
 	sort.Strings(dirs)
 
-	// Calculate column widths
-	dirWidth := 9 // minimum width for "Directory"
-	filesWidth := 5
-	linesWidth := 7
+	// Calculate total code for percentage calculation
+	totalCode := summary.TotalCode
+
+	// Build rows
+	rows := make([][]string, 0, len(dirs)+1)
+	var totalFiles, totalCodeSum, totalComments int
 
 	for _, dir := range dirs {
 		stats := summary.ByDirectory[dir]
-		if len(dir) > dirWidth {
-			dirWidth = len(dir)
+		totalFiles += stats.Files
+		totalCodeSum += stats.Code
+		totalComments += stats.Comments
+
+		// Calculate percentage
+		var pct float64
+		if totalCode > 0 {
+			pct = float64(stats.Code) / float64(totalCode) * 100
 		}
-		if w := len(formatNumber(stats.Files)); w > filesWidth {
-			filesWidth = w
-		}
-		if w := len(formatNumber(stats.Lines)); w > linesWidth {
-			linesWidth = w
-		}
+
+		rows = append(rows, []string{
+			dir,
+			formatNumber(stats.Files),
+			formatNumber(stats.Code),
+			formatNumber(stats.Comments),
+			fmt.Sprintf("%.1f%%", pct),
+		})
 	}
 
-	sb.WriteString("  By Directory\n")
+	// Add totals row
+	rows = append(rows, []string{
+		"Total",
+		formatNumber(totalFiles),
+		formatNumber(totalCodeSum),
+		formatNumber(totalComments),
+		"100.0%",
+	})
 
-	// Top border
-	sb.WriteString("  +")
-	sb.WriteString(strings.Repeat("-", dirWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", filesWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", linesWidth+2))
-	sb.WriteString("+\n")
+	// Create the table with rounded borders
+	t := table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(styles.Border).
+		Headers("Directory", "Files", "Code", "Comments", "%")
 
-	// Header row
-	sb.WriteString(fmt.Sprintf("  | %-*s | %*s | %*s |\n",
-		dirWidth, "Directory",
-		filesWidth, "Files",
-		linesWidth, "Lines"))
-
-	// Header separator
-	sb.WriteString("  +")
-	sb.WriteString(strings.Repeat("-", dirWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", filesWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", linesWidth+2))
-	sb.WriteString("+\n")
-
-	// Data rows
-	for _, dir := range dirs {
-		stats := summary.ByDirectory[dir]
-		sb.WriteString(fmt.Sprintf("  | %-*s | %*s | %*s |\n",
-			dirWidth, dir,
-			filesWidth, formatNumber(stats.Files),
-			linesWidth, formatNumber(stats.Lines)))
+	// Add all rows
+	for _, row := range rows {
+		t.Row(row...)
 	}
 
-	// Bottom border
-	sb.WriteString("  +")
-	sb.WriteString(strings.Repeat("-", dirWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", filesWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", linesWidth+2))
-	sb.WriteString("+\n")
+	// Style the table: header centered, first column left-aligned, rest right-aligned
+	t.StyleFunc(func(row, col int) lipgloss.Style {
+		if row == table.HeaderRow {
+			return styles.Label.Padding(0, 1).Align(lipgloss.Center)
+		}
+		// First column (name) left-aligned
+		if col == 0 {
+			// Use TotalLabel style for the totals row
+			if row == len(rows)-1 {
+				return styles.TotalLabel.Padding(0, 1).Align(lipgloss.Left)
+			}
+			return styles.Number.Padding(0, 1).Align(lipgloss.Left)
+		}
+		// Numeric columns right-aligned
+		if row == len(rows)-1 {
+			return styles.TotalNumber.Padding(0, 1).Align(lipgloss.Right)
+		}
+		return styles.Number.Padding(0, 1).Align(lipgloss.Right)
+	})
 
-	return sb.String()
+	return styles.SectionTitle.Render("By Directory") + "\n" + t.Render() + "\n"
 }
 
-// formatPackageTable creates a pretty table for package breakdown
-func formatPackageTable(summary *Summary) string {
-	var sb strings.Builder
+// formatPackageTable creates a pretty table for package breakdown using Charmbracelet lipgloss/table
+func formatPackageTable(summary *Summary, config *OutputConfig) string {
+	// Get appropriate styles based on NoColor setting
+	var styles *Styles
+	if config.NoColor {
+		styles = NoColorStyles()
+	} else {
+		styles = DefaultStyles()
+	}
 
 	// Get sorted package names
 	packages := make([]string, 0, len(summary.ByPackage))
@@ -318,93 +324,75 @@ func formatPackageTable(summary *Summary) string {
 	}
 	sort.Strings(packages)
 
-	// Calculate column widths
-	pkgWidth := 7 // minimum width for "Package"
-	filesWidth := 5
-	linesWidth := 7
-	codeWidth := 6
-	commentsWidth := 8
+	// Calculate total code for percentage calculation
+	totalCode := summary.TotalCode
+
+	// Build rows
+	rows := make([][]string, 0, len(packages)+1)
+	var totalFiles, totalCodeSum, totalComments int
 
 	for _, pkg := range packages {
 		stats := summary.ByPackage[pkg]
-		if len(pkg) > pkgWidth {
-			pkgWidth = len(pkg)
+		totalFiles += stats.Files
+		totalCodeSum += stats.Code
+		totalComments += stats.Comments
+
+		// Calculate percentage
+		var pct float64
+		if totalCode > 0 {
+			pct = float64(stats.Code) / float64(totalCode) * 100
 		}
-		if w := len(formatNumber(stats.Files)); w > filesWidth {
-			filesWidth = w
-		}
-		if w := len(formatNumber(stats.Lines)); w > linesWidth {
-			linesWidth = w
-		}
-		if w := len(formatNumber(stats.Code)); w > codeWidth {
-			codeWidth = w
-		}
-		if w := len(formatNumber(stats.Comments)); w > commentsWidth {
-			commentsWidth = w
-		}
+
+		rows = append(rows, []string{
+			pkg,
+			formatNumber(stats.Files),
+			formatNumber(stats.Code),
+			formatNumber(stats.Comments),
+			fmt.Sprintf("%.1f%%", pct),
+		})
 	}
 
-	sb.WriteString("  By Package\n")
+	// Add totals row
+	rows = append(rows, []string{
+		"Total",
+		formatNumber(totalFiles),
+		formatNumber(totalCodeSum),
+		formatNumber(totalComments),
+		"100.0%",
+	})
 
-	// Top border
-	sb.WriteString("  +")
-	sb.WriteString(strings.Repeat("-", pkgWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", filesWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", linesWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", codeWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", commentsWidth+2))
-	sb.WriteString("+\n")
+	// Create the table with rounded borders
+	t := table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(styles.Border).
+		Headers("Package", "Files", "Code", "Comments", "%")
 
-	// Header row
-	sb.WriteString(fmt.Sprintf("  | %-*s | %*s | %*s | %*s | %*s |\n",
-		pkgWidth, "Package",
-		filesWidth, "Files",
-		linesWidth, "Lines",
-		codeWidth, "Code",
-		commentsWidth, "Comments"))
-
-	// Header separator
-	sb.WriteString("  +")
-	sb.WriteString(strings.Repeat("-", pkgWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", filesWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", linesWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", codeWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", commentsWidth+2))
-	sb.WriteString("+\n")
-
-	// Data rows
-	for _, pkg := range packages {
-		stats := summary.ByPackage[pkg]
-		sb.WriteString(fmt.Sprintf("  | %-*s | %*s | %*s | %*s | %*s |\n",
-			pkgWidth, pkg,
-			filesWidth, formatNumber(stats.Files),
-			linesWidth, formatNumber(stats.Lines),
-			codeWidth, formatNumber(stats.Code),
-			commentsWidth, formatNumber(stats.Comments)))
+	// Add all rows
+	for _, row := range rows {
+		t.Row(row...)
 	}
 
-	// Bottom border
-	sb.WriteString("  +")
-	sb.WriteString(strings.Repeat("-", pkgWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", filesWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", linesWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", codeWidth+2))
-	sb.WriteString("+")
-	sb.WriteString(strings.Repeat("-", commentsWidth+2))
-	sb.WriteString("+\n")
+	// Style the table: header centered, first column left-aligned, rest right-aligned
+	t.StyleFunc(func(row, col int) lipgloss.Style {
+		if row == table.HeaderRow {
+			return styles.Label.Padding(0, 1).Align(lipgloss.Center)
+		}
+		// First column (name) left-aligned
+		if col == 0 {
+			// Use TotalLabel style for the totals row
+			if row == len(rows)-1 {
+				return styles.TotalLabel.Padding(0, 1).Align(lipgloss.Left)
+			}
+			return styles.Number.Padding(0, 1).Align(lipgloss.Left)
+		}
+		// Numeric columns right-aligned
+		if row == len(rows)-1 {
+			return styles.TotalNumber.Padding(0, 1).Align(lipgloss.Right)
+		}
+		return styles.Number.Padding(0, 1).Align(lipgloss.Right)
+	})
 
-	return sb.String()
+	return styles.SectionTitle.Render("By Package") + "\n" + t.Render() + "\n"
 }
 
 // jsonOutput represents the JSON output structure

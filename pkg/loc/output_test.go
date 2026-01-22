@@ -189,15 +189,19 @@ func TestPrettyOutputWithLanguageBreakdown(t *testing.T) {
 		t.Error("expected 'Python' in language table")
 	}
 
-	// Check ASCII table characters are present
-	if !strings.Contains(output, "+") { // corner/junction
-		t.Error("expected '+' characters in output")
+	// Check that Unicode rounded border characters are present (converted to lipgloss/table)
+	if !strings.Contains(output, "\u256d") && !strings.Contains(output, "\u2502") {
+		t.Error("expected rounded border characters in output")
 	}
-	if !strings.Contains(output, "|") { // vertical line
-		t.Error("expected '|' characters in output")
+
+	// Check that percentage column is present
+	if !strings.Contains(output, "%") {
+		t.Error("expected '%' column header in output")
 	}
-	if !strings.Contains(output, "-") { // horizontal line
-		t.Error("expected '-' characters in output")
+
+	// Check that totals row is present
+	if !strings.Contains(output, "Total") {
+		t.Error("expected 'Total' row in output")
 	}
 }
 
