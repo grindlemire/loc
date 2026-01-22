@@ -7,6 +7,7 @@ import (
 	"runtime"
 
 	"github.com/alethi-co/loc/pkg/loc"
+	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v3"
 )
 
@@ -65,6 +66,10 @@ func main() {
 				Value:   runtime.NumCPU(),
 				Usage:   "Number of parallel workers",
 			},
+			&cli.BoolFlag{
+				Name:  "no-color",
+				Usage: "Disable colored output",
+			},
 		},
 		Action: run,
 	}
@@ -117,12 +122,21 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("counting failed: %w", err)
 	}
 
+	// Determine if colors should be disabled:
+	// 1. --no-color flag is set, OR
+	// 2. NO_COLOR environment variable is set (any non-empty value), OR
+	// 3. stdout is not a TTY
+	noColor := cmd.Bool("no-color") ||
+		os.Getenv("NO_COLOR") != "" ||
+		!isatty.IsTerminal(os.Stdout.Fd())
+
 	// Format and print output
 	outputConfig := &loc.OutputConfig{
 		Format:     loc.OutputFormat(config.OutputFormat),
 		ByLanguage: config.ByLanguage,
 		ByDir:      config.ByDirectory,
 		ByPackage:  config.ByPackage,
+		NoColor:    noColor,
 	}
 
 	output := loc.FormatOutput(summary, outputConfig)
