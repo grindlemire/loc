@@ -713,3 +713,185 @@ func TestNoColorOutput(t *testing.T) {
 		t.Error("expected Unicode border characters in no-color output")
 	}
 }
+
+func TestNoColorOutputWithBreakdowns(t *testing.T) {
+	summary := createTestSummary()
+	config := &OutputConfig{
+		Format:     FormatPretty,
+		NoColor:    true,
+		ByLanguage: true,
+		ByDir:      true,
+		ByPackage:  true,
+	}
+
+	output := FormatOutput(summary, config)
+
+	// Should have all breakdown sections
+	if !strings.Contains(output, "By Language") {
+		t.Error("expected 'By Language' section in no-color output")
+	}
+	if !strings.Contains(output, "By Directory") {
+		t.Error("expected 'By Directory' section in no-color output")
+	}
+	if !strings.Contains(output, "By Package") {
+		t.Error("expected 'By Package' section in no-color output")
+	}
+
+	// Should have percentage columns
+	if !strings.Contains(output, "%") {
+		t.Error("expected '%' column in no-color output")
+	}
+
+	// Should have Total rows
+	if !strings.Contains(output, "Total") {
+		t.Error("expected 'Total' row in no-color output")
+	}
+}
+
+func TestPercentageCalculations(t *testing.T) {
+	// Create a summary with known values for percentage calculation
+	summary := &Summary{
+		TotalFiles:    3,
+		TotalLines:    300,
+		TotalCode:     200, // Total code for percentage base
+		TotalBlanks:   50,
+		TotalComments: 50,
+		ByLanguage: map[string]*LanguageStats{
+			"Go": {
+				Language: "Go",
+				Files:    2,
+				Lines:    200,
+				Code:     150, // 75% of 200
+				Blanks:   25,
+				Comments: 25,
+			},
+			"Python": {
+				Language: "Python",
+				Files:    1,
+				Lines:    100,
+				Code:     50, // 25% of 200
+				Blanks:   25,
+				Comments: 25,
+			},
+		},
+		ByDirectory: make(map[string]*DirectoryStats),
+		ByPackage:   make(map[string]*PackageStats),
+	}
+
+	config := &OutputConfig{
+		Format:     FormatPretty,
+		ByLanguage: true,
+		NoColor:    true, // Disable colors to avoid ANSI escape sequences in test
+	}
+
+	output := FormatOutput(summary, config)
+
+	// Check that percentages are calculated correctly
+	// Go has 150/200 = 75%
+	if !strings.Contains(output, "75.0%") {
+		t.Errorf("expected '75.0%%' for Go language, got: %s", output)
+	}
+
+	// Python has 50/200 = 25%
+	if !strings.Contains(output, "25.0%") {
+		t.Errorf("expected '25.0%%' for Python language, got: %s", output)
+	}
+
+	// Total should be 100%
+	if !strings.Contains(output, "100.0%") {
+		t.Errorf("expected '100.0%%' for Total row, got: %s", output)
+	}
+}
+
+func TestTotalsRowInBreakdownTables(t *testing.T) {
+	summary := createTestSummary()
+
+	t.Run("language totals", func(t *testing.T) {
+		config := &OutputConfig{
+			Format:     FormatPretty,
+			ByLanguage: true,
+			NoColor:    true,
+		}
+
+		output := FormatOutput(summary, config)
+
+		// Check for Total row
+		if !strings.Contains(output, "Total") {
+			t.Error("expected 'Total' row in language breakdown")
+		}
+
+		// Check that the totals are summed correctly
+		// Go: 42 + TypeScript: 28 + Python: 15 = 85 files
+		// But we're using the total from createTestSummary which sums to 85
+		if !strings.Contains(output, "85") {
+			t.Errorf("expected total files count '85' in output, got: %s", output)
+		}
+	})
+
+	t.Run("directory totals", func(t *testing.T) {
+		config := &OutputConfig{
+			Format:  FormatPretty,
+			ByDir:   true,
+			NoColor: true,
+		}
+
+		output := FormatOutput(summary, config)
+
+		// Check for Total row
+		if !strings.Contains(output, "Total") {
+			t.Error("expected 'Total' row in directory breakdown")
+		}
+	})
+
+	t.Run("package totals", func(t *testing.T) {
+		config := &OutputConfig{
+			Format:    FormatPretty,
+			ByPackage: true,
+			NoColor:   true,
+		}
+
+		output := FormatOutput(summary, config)
+
+		// Check for Total row
+		if !strings.Contains(output, "Total") {
+			t.Error("expected 'Total' row in package breakdown")
+		}
+	})
+}
+
+func TestZeroTotalCodePercentage(t *testing.T) {
+	// Test edge case where TotalCode is 0 (avoid division by zero)
+	summary := &Summary{
+		TotalFiles:    0,
+		TotalLines:    0,
+		TotalCode:     0, // Zero total code
+		TotalBlanks:   0,
+		TotalComments: 0,
+		ByLanguage: map[string]*LanguageStats{
+			"Go": {
+				Language: "Go",
+				Files:    0,
+				Lines:    0,
+				Code:     0,
+				Blanks:   0,
+				Comments: 0,
+			},
+		},
+		ByDirectory: make(map[string]*DirectoryStats),
+		ByPackage:   make(map[string]*PackageStats),
+	}
+
+	config := &OutputConfig{
+		Format:     FormatPretty,
+		ByLanguage: true,
+		NoColor:    true,
+	}
+
+	// This should not panic due to division by zero
+	output := FormatOutput(summary, config)
+
+	// Should handle 0/0 case gracefully (showing 0.0%)
+	if !strings.Contains(output, "0.0%") {
+		t.Errorf("expected '0.0%%' when total code is 0, got: %s", output)
+	}
+}

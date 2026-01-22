@@ -517,7 +517,94 @@ func buildCLICommand() *cli.Command {
 				Value:   4,
 				Usage:   "Number of parallel workers",
 			},
+			&cli.BoolFlag{
+				Name:  "no-color",
+				Usage: "Disable colored output",
+			},
 		},
 		Action: run,
+	}
+}
+
+// TestCLINoColorFlag tests the --no-color flag
+func TestCLINoColorFlag(t *testing.T) {
+	testDir := t.TempDir()
+
+	// Create a Go file
+	err := os.WriteFile(filepath.Join(testDir, "main.go"), []byte(`package main
+
+func main() {}
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+
+	cmd := buildCLICommand()
+	cmd.Writer = &buf
+
+	err = cmd.Run(context.Background(), []string{"loc", "--no-color", testDir})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+
+	// Should still have table structure with headers
+	if !strings.Contains(output, "Files") {
+		t.Errorf("expected 'Files' header in no-color output, got: %s", output)
+	}
+	if !strings.Contains(output, "Code") {
+		t.Errorf("expected 'Code' header in no-color output, got: %s", output)
+	}
+	if !strings.Contains(output, "Comments") {
+		t.Errorf("expected 'Comments' header in no-color output, got: %s", output)
+	}
+
+	// Should have table border characters (rounded borders still work in no-color mode)
+	if !strings.Contains(output, "\u2502") && !strings.Contains(output, "\u2500") {
+		t.Errorf("expected table border characters in no-color output, got: %s", output)
+	}
+}
+
+// TestCLINoColorFlagWithBreakdowns tests --no-color with breakdown flags
+func TestCLINoColorFlagWithBreakdowns(t *testing.T) {
+	testDir := t.TempDir()
+
+	// Create a Go file
+	err := os.WriteFile(filepath.Join(testDir, "main.go"), []byte(`package main
+
+func main() {}
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+
+	cmd := buildCLICommand()
+	cmd.Writer = &buf
+
+	err = cmd.Run(context.Background(), []string{"loc", "--no-color", "--by-language", testDir})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+
+	// Should show language breakdown
+	if !strings.Contains(output, "By Language") {
+		t.Errorf("expected 'By Language' section in no-color output, got: %s", output)
+	}
+
+	// Should have percentage column
+	if !strings.Contains(output, "%") {
+		t.Errorf("expected '%%' column in no-color output, got: %s", output)
+	}
+
+	// Should have Total row
+	if !strings.Contains(output, "Total") {
+		t.Errorf("expected 'Total' row in no-color output, got: %s", output)
 	}
 }
