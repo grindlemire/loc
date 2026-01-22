@@ -64,9 +64,9 @@ type Summary struct {
 	OtherComments int
 }
 
-// LanguageStats holds aggregated statistics for a single language
-type LanguageStats struct {
-	Language string
+// BaseStats holds common statistics fields shared across language, directory, and package stats.
+// It provides an AddFile method to accumulate results from individual files.
+type BaseStats struct {
 	Files    int
 	Lines    int
 	Code     int
@@ -93,68 +93,54 @@ type LanguageStats struct {
 	OtherCode     int
 	OtherBlanks   int
 	OtherComments int
+}
+
+// AddFile accumulates statistics from a FileResult into the BaseStats.
+func (s *BaseStats) AddFile(r *FileResult) {
+	s.Files++
+	s.Lines += r.Lines
+	s.Code += r.CodeLines
+	s.Blanks += r.BlankLines
+	s.Comments += r.CommentLines
+
+	switch r.Category {
+	case FileCategoryTest:
+		s.TestFiles++
+		s.TestLines += r.Lines
+		s.TestCode += r.CodeLines
+		s.TestBlanks += r.BlankLines
+		s.TestComments += r.CommentLines
+	case FileCategoryOther:
+		s.OtherFiles++
+		s.OtherLines += r.Lines
+		s.OtherCode += r.CodeLines
+		s.OtherBlanks += r.BlankLines
+		s.OtherComments += r.CommentLines
+	default: // FileCategorySrc
+		s.SrcFiles++
+		s.SrcLines += r.Lines
+		s.SrcCode += r.CodeLines
+		s.SrcBlanks += r.BlankLines
+		s.SrcComments += r.CommentLines
+	}
+}
+
+// LanguageStats holds aggregated statistics for a single language
+type LanguageStats struct {
+	Language string
+	BaseStats
 }
 
 // DirectoryStats holds aggregated statistics for a single directory
 type DirectoryStats struct {
-	Path     string
-	Files    int
-	Lines    int
-	Code     int
-	Blanks   int
-	Comments int
-
-	// Source file sub-breakdown
-	SrcFiles    int
-	SrcLines    int
-	SrcCode     int
-	SrcBlanks   int
-	SrcComments int
-
-	// Test file sub-breakdown
-	TestFiles    int
-	TestLines    int
-	TestCode     int
-	TestBlanks   int
-	TestComments int
-
-	// Other file sub-breakdown
-	OtherFiles    int
-	OtherLines    int
-	OtherCode     int
-	OtherBlanks   int
-	OtherComments int
+	Path string
+	BaseStats
 }
 
 // PackageStats holds aggregated statistics for a single package
 type PackageStats struct {
-	Package  string
-	Files    int
-	Lines    int
-	Code     int
-	Blanks   int
-	Comments int
-
-	// Source file sub-breakdown
-	SrcFiles    int
-	SrcLines    int
-	SrcCode     int
-	SrcBlanks   int
-	SrcComments int
-
-	// Test file sub-breakdown
-	TestFiles    int
-	TestLines    int
-	TestCode     int
-	TestBlanks   int
-	TestComments int
-
-	// Other file sub-breakdown
-	OtherFiles    int
-	OtherLines    int
-	OtherCode     int
-	OtherBlanks   int
-	OtherComments int
+	Package string
+	BaseStats
 }
 
 // Config holds runtime configuration options

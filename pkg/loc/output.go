@@ -284,8 +284,21 @@ type breakdownRow struct {
 	data    []string
 }
 
-// formatLanguageTable creates a pretty table for language breakdown using Charmbracelet lipgloss/table
-func formatLanguageTable(summary *Summary, config *OutputConfig) string {
+// breakdownEntry represents a single entry in a breakdown table (language, directory, or package)
+type breakdownEntry struct {
+	Label string
+	Stats *BaseStats
+}
+
+// formatBreakdownTable is a generic formatter for language, directory, and package tables.
+// It eliminates duplication across the three specific formatters.
+func formatBreakdownTable(
+	title string,
+	headerLabel string,
+	entries []breakdownEntry,
+	totalCode int,
+	config *OutputConfig,
+) string {
 	// Get appropriate styles based on NoColor setting
 	var styles *Styles
 	if config.NoColor {
@@ -294,531 +307,226 @@ func formatLanguageTable(summary *Summary, config *OutputConfig) string {
 		styles = DefaultStyles()
 	}
 
-	// Get sorted language names
+	// Determine elbow characters based on color mode
+	elbowMiddle := ElbowMiddle
+	elbowLast := ElbowLast
+	if config.NoColor {
+		elbowMiddle = ElbowMiddleASCII
+		elbowLast = ElbowLastASCII
+	}
+
+	// Build rows with type information
+	var rows []breakdownRow
+	var totalFiles, totalCodeSum, totalComments int
+
+	// When combined, show simple rows without sub-breakdown
+	showSubRows := !config.Combined
+
+	for _, entry := range entries {
+		stats := entry.Stats
+		totalFiles += stats.Files
+		totalCodeSum += stats.Code
+		totalComments += stats.Comments
+
+		// Calculate percentage for the main row
+		var pct float64
+		if totalCode > 0 {
+			pct = float64(stats.Code) / float64(totalCode) * 100
+		}
+
+		// Add main row
+		rows = append(rows, breakdownRow{
+			rowType: breakdownRowMain,
+			data: []string{
+				entry.Label,
+				formatNumber(stats.Files),
+				formatNumber(stats.Code),
+				formatNumber(stats.Comments),
+				fmt.Sprintf("%.1f%%", pct),
+			},
+		})
+
+		// Add sub-rows if not combined
+		if showSubRows {
+			// Determine if we have "other" files for this entry
+			hasOther := config.ShowAll && stats.OtherFiles > 0
+
+			// Determine elbow prefixes
+			srcPrefix := elbowMiddle
+			testPrefix := elbowMiddle
+			if !hasOther {
+				testPrefix = elbowLast
+			}
+
+			// Source sub-row
+			var srcPct float64
+			if totalCode > 0 {
+				srcPct = float64(stats.SrcCode) / float64(totalCode) * 100
+			}
+			rows = append(rows, breakdownRow{
+				rowType: breakdownRowSub,
+				data: []string{
+					srcPrefix + "src",
+					formatNumber(stats.SrcFiles),
+					formatNumber(stats.SrcCode),
+					formatNumber(stats.SrcComments),
+					fmt.Sprintf("%.1f%%", srcPct),
+				},
+			})
+
+			// Test sub-row
+			var testPct float64
+			if totalCode > 0 {
+				testPct = float64(stats.TestCode) / float64(totalCode) * 100
+			}
+			rows = append(rows, breakdownRow{
+				rowType: breakdownRowSub,
+				data: []string{
+					testPrefix + "test",
+					formatNumber(stats.TestFiles),
+					formatNumber(stats.TestCode),
+					formatNumber(stats.TestComments),
+					fmt.Sprintf("%.1f%%", testPct),
+				},
+			})
+
+			// Other sub-row (only when --all flag is set and there are other files)
+			if hasOther {
+				var otherPct float64
+				if totalCode > 0 {
+					otherPct = float64(stats.OtherCode) / float64(totalCode) * 100
+				}
+				rows = append(rows, breakdownRow{
+					rowType: breakdownRowSub,
+					data: []string{
+						elbowLast + "other",
+						formatNumber(stats.OtherFiles),
+						formatNumber(stats.OtherCode),
+						formatNumber(stats.OtherComments),
+						fmt.Sprintf("%.1f%%", otherPct),
+					},
+				})
+			}
+		}
+	}
+
+	// Add totals row
+	rows = append(rows, breakdownRow{
+		rowType: breakdownRowTotal,
+		data: []string{
+			"Total",
+			formatNumber(totalFiles),
+			formatNumber(totalCodeSum),
+			formatNumber(totalComments),
+			"100.0%",
+		},
+	})
+
+	// Create the table with rounded borders
+	t := table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(styles.Border).
+		Headers(headerLabel, "Files", "Code", "Comments", "%")
+
+	// Add all rows
+	for _, row := range rows {
+		t.Row(row.data...)
+	}
+
+	// Style the table: header centered, first column left-aligned, rest right-aligned
+	t.StyleFunc(func(rowIdx, col int) lipgloss.Style {
+		if rowIdx == table.HeaderRow {
+			return styles.Label.Padding(0, 1).Align(lipgloss.Center)
+		}
+		// Get the row type
+		rowType := rows[rowIdx].rowType
+
+		// First column (label) left-aligned
+		if col == 0 {
+			switch rowType {
+			case breakdownRowTotal:
+				return styles.TotalLabel.Padding(0, 1).Align(lipgloss.Left)
+			case breakdownRowSub:
+				return styles.SubRowLabel.Padding(0, 1).Align(lipgloss.Left)
+			default:
+				return styles.Number.Padding(0, 1).Align(lipgloss.Left)
+			}
+		}
+		// Numeric columns right-aligned
+		switch rowType {
+		case breakdownRowTotal:
+			return styles.TotalNumber.Padding(0, 1).Align(lipgloss.Right)
+		case breakdownRowSub:
+			return styles.SubRowLabel.Padding(0, 1).Align(lipgloss.Right)
+		default:
+			return styles.Number.Padding(0, 1).Align(lipgloss.Right)
+		}
+	})
+
+	return styles.SectionTitle.Render(title) + "\n" + t.Render() + "\n"
+}
+
+// formatLanguageTable creates a pretty table for language breakdown using Charmbracelet lipgloss/table
+func formatLanguageTable(summary *Summary, config *OutputConfig) string {
+	// Get sorted language names and build entries
 	languages := make([]string, 0, len(summary.ByLanguage))
 	for lang := range summary.ByLanguage {
 		languages = append(languages, lang)
 	}
 	sort.Strings(languages)
 
-	// Calculate total code for percentage calculation
-	totalCode := summary.TotalCode
-
-	// Determine elbow characters based on color mode
-	elbowMiddle := ElbowMiddle
-	elbowLast := ElbowLast
-	if config.NoColor {
-		elbowMiddle = ElbowMiddleASCII
-		elbowLast = ElbowLastASCII
-	}
-
-	// Build rows with type information
-	var rows []breakdownRow
-	var totalFiles, totalCodeSum, totalComments int
-
-	// When combined, show simple rows without sub-breakdown
-	showSubRows := !config.Combined
-
+	entries := make([]breakdownEntry, 0, len(languages))
 	for _, lang := range languages {
 		stats := summary.ByLanguage[lang]
-		totalFiles += stats.Files
-		totalCodeSum += stats.Code
-		totalComments += stats.Comments
-
-		// Calculate percentage for the main row
-		var pct float64
-		if totalCode > 0 {
-			pct = float64(stats.Code) / float64(totalCode) * 100
-		}
-
-		// Add main language row
-		rows = append(rows, breakdownRow{
-			rowType: breakdownRowMain,
-			data: []string{
-				lang,
-				formatNumber(stats.Files),
-				formatNumber(stats.Code),
-				formatNumber(stats.Comments),
-				fmt.Sprintf("%.1f%%", pct),
-			},
+		entries = append(entries, breakdownEntry{
+			Label: lang,
+			Stats: &stats.BaseStats,
 		})
-
-		// Add sub-rows if not combined
-		if showSubRows {
-			// Determine if we have "other" files for this language
-			hasOther := config.ShowAll && stats.OtherFiles > 0
-
-			// Determine elbow prefixes
-			srcPrefix := elbowMiddle
-			testPrefix := elbowMiddle
-			if !hasOther {
-				testPrefix = elbowLast
-			}
-
-			// Source sub-row
-			var srcPct float64
-			if totalCode > 0 {
-				srcPct = float64(stats.SrcCode) / float64(totalCode) * 100
-			}
-			rows = append(rows, breakdownRow{
-				rowType: breakdownRowSub,
-				data: []string{
-					srcPrefix + "src",
-					formatNumber(stats.SrcFiles),
-					formatNumber(stats.SrcCode),
-					formatNumber(stats.SrcComments),
-					fmt.Sprintf("%.1f%%", srcPct),
-				},
-			})
-
-			// Test sub-row
-			var testPct float64
-			if totalCode > 0 {
-				testPct = float64(stats.TestCode) / float64(totalCode) * 100
-			}
-			rows = append(rows, breakdownRow{
-				rowType: breakdownRowSub,
-				data: []string{
-					testPrefix + "test",
-					formatNumber(stats.TestFiles),
-					formatNumber(stats.TestCode),
-					formatNumber(stats.TestComments),
-					fmt.Sprintf("%.1f%%", testPct),
-				},
-			})
-
-			// Other sub-row (only when --all flag is set and there are other files)
-			if hasOther {
-				var otherPct float64
-				if totalCode > 0 {
-					otherPct = float64(stats.OtherCode) / float64(totalCode) * 100
-				}
-				rows = append(rows, breakdownRow{
-					rowType: breakdownRowSub,
-					data: []string{
-						elbowLast + "other",
-						formatNumber(stats.OtherFiles),
-						formatNumber(stats.OtherCode),
-						formatNumber(stats.OtherComments),
-						fmt.Sprintf("%.1f%%", otherPct),
-					},
-				})
-			}
-		}
 	}
 
-	// Add totals row
-	rows = append(rows, breakdownRow{
-		rowType: breakdownRowTotal,
-		data: []string{
-			"Total",
-			formatNumber(totalFiles),
-			formatNumber(totalCodeSum),
-			formatNumber(totalComments),
-			"100.0%",
-		},
-	})
-
-	// Create the table with rounded borders
-	t := table.New().
-		Border(lipgloss.RoundedBorder()).
-		BorderStyle(styles.Border).
-		Headers("Language", "Files", "Code", "Comments", "%")
-
-	// Add all rows
-	for _, row := range rows {
-		t.Row(row.data...)
-	}
-
-	// Style the table: header centered, first column left-aligned, rest right-aligned
-	t.StyleFunc(func(rowIdx, col int) lipgloss.Style {
-		if rowIdx == table.HeaderRow {
-			return styles.Label.Padding(0, 1).Align(lipgloss.Center)
-		}
-		// Get the row type
-		rowType := rows[rowIdx].rowType
-
-		// First column (label) left-aligned
-		if col == 0 {
-			switch rowType {
-			case breakdownRowTotal:
-				return styles.TotalLabel.Padding(0, 1).Align(lipgloss.Left)
-			case breakdownRowSub:
-				return styles.SubRowLabel.Padding(0, 1).Align(lipgloss.Left)
-			default:
-				return styles.Number.Padding(0, 1).Align(lipgloss.Left)
-			}
-		}
-		// Numeric columns right-aligned
-		switch rowType {
-		case breakdownRowTotal:
-			return styles.TotalNumber.Padding(0, 1).Align(lipgloss.Right)
-		case breakdownRowSub:
-			return styles.SubRowLabel.Padding(0, 1).Align(lipgloss.Right)
-		default:
-			return styles.Number.Padding(0, 1).Align(lipgloss.Right)
-		}
-	})
-
-	return styles.SectionTitle.Render("By Language") + "\n" + t.Render() + "\n"
+	return formatBreakdownTable("By Language", "Language", entries, summary.TotalCode, config)
 }
 
 // formatDirectoryTable creates a pretty table for directory breakdown using Charmbracelet lipgloss/table
 func formatDirectoryTable(summary *Summary, config *OutputConfig) string {
-	// Get appropriate styles based on NoColor setting
-	var styles *Styles
-	if config.NoColor {
-		styles = NoColorStyles()
-	} else {
-		styles = DefaultStyles()
-	}
-
-	// Get sorted directory paths
+	// Get sorted directory paths and build entries
 	dirs := make([]string, 0, len(summary.ByDirectory))
 	for dir := range summary.ByDirectory {
 		dirs = append(dirs, dir)
 	}
 	sort.Strings(dirs)
 
-	// Calculate total code for percentage calculation
-	totalCode := summary.TotalCode
-
-	// Determine elbow characters based on color mode
-	elbowMiddle := ElbowMiddle
-	elbowLast := ElbowLast
-	if config.NoColor {
-		elbowMiddle = ElbowMiddleASCII
-		elbowLast = ElbowLastASCII
-	}
-
-	// Build rows with type information
-	var rows []breakdownRow
-	var totalFiles, totalCodeSum, totalComments int
-
-	// When combined, show simple rows without sub-breakdown
-	showSubRows := !config.Combined
-
+	entries := make([]breakdownEntry, 0, len(dirs))
 	for _, dir := range dirs {
 		stats := summary.ByDirectory[dir]
-		totalFiles += stats.Files
-		totalCodeSum += stats.Code
-		totalComments += stats.Comments
-
-		// Calculate percentage for the main row
-		var pct float64
-		if totalCode > 0 {
-			pct = float64(stats.Code) / float64(totalCode) * 100
-		}
-
-		// Add main directory row
-		rows = append(rows, breakdownRow{
-			rowType: breakdownRowMain,
-			data: []string{
-				dir,
-				formatNumber(stats.Files),
-				formatNumber(stats.Code),
-				formatNumber(stats.Comments),
-				fmt.Sprintf("%.1f%%", pct),
-			},
+		entries = append(entries, breakdownEntry{
+			Label: dir,
+			Stats: &stats.BaseStats,
 		})
-
-		// Add sub-rows if not combined
-		if showSubRows {
-			// Determine if we have "other" files for this directory
-			hasOther := config.ShowAll && stats.OtherFiles > 0
-
-			// Determine elbow prefixes
-			srcPrefix := elbowMiddle
-			testPrefix := elbowMiddle
-			if !hasOther {
-				testPrefix = elbowLast
-			}
-
-			// Source sub-row
-			var srcPct float64
-			if totalCode > 0 {
-				srcPct = float64(stats.SrcCode) / float64(totalCode) * 100
-			}
-			rows = append(rows, breakdownRow{
-				rowType: breakdownRowSub,
-				data: []string{
-					srcPrefix + "src",
-					formatNumber(stats.SrcFiles),
-					formatNumber(stats.SrcCode),
-					formatNumber(stats.SrcComments),
-					fmt.Sprintf("%.1f%%", srcPct),
-				},
-			})
-
-			// Test sub-row
-			var testPct float64
-			if totalCode > 0 {
-				testPct = float64(stats.TestCode) / float64(totalCode) * 100
-			}
-			rows = append(rows, breakdownRow{
-				rowType: breakdownRowSub,
-				data: []string{
-					testPrefix + "test",
-					formatNumber(stats.TestFiles),
-					formatNumber(stats.TestCode),
-					formatNumber(stats.TestComments),
-					fmt.Sprintf("%.1f%%", testPct),
-				},
-			})
-
-			// Other sub-row (only when --all flag is set and there are other files)
-			if hasOther {
-				var otherPct float64
-				if totalCode > 0 {
-					otherPct = float64(stats.OtherCode) / float64(totalCode) * 100
-				}
-				rows = append(rows, breakdownRow{
-					rowType: breakdownRowSub,
-					data: []string{
-						elbowLast + "other",
-						formatNumber(stats.OtherFiles),
-						formatNumber(stats.OtherCode),
-						formatNumber(stats.OtherComments),
-						fmt.Sprintf("%.1f%%", otherPct),
-					},
-				})
-			}
-		}
 	}
 
-	// Add totals row
-	rows = append(rows, breakdownRow{
-		rowType: breakdownRowTotal,
-		data: []string{
-			"Total",
-			formatNumber(totalFiles),
-			formatNumber(totalCodeSum),
-			formatNumber(totalComments),
-			"100.0%",
-		},
-	})
-
-	// Create the table with rounded borders
-	t := table.New().
-		Border(lipgloss.RoundedBorder()).
-		BorderStyle(styles.Border).
-		Headers("Directory", "Files", "Code", "Comments", "%")
-
-	// Add all rows
-	for _, row := range rows {
-		t.Row(row.data...)
-	}
-
-	// Style the table: header centered, first column left-aligned, rest right-aligned
-	t.StyleFunc(func(rowIdx, col int) lipgloss.Style {
-		if rowIdx == table.HeaderRow {
-			return styles.Label.Padding(0, 1).Align(lipgloss.Center)
-		}
-		// Get the row type
-		rowType := rows[rowIdx].rowType
-
-		// First column (label) left-aligned
-		if col == 0 {
-			switch rowType {
-			case breakdownRowTotal:
-				return styles.TotalLabel.Padding(0, 1).Align(lipgloss.Left)
-			case breakdownRowSub:
-				return styles.SubRowLabel.Padding(0, 1).Align(lipgloss.Left)
-			default:
-				return styles.Number.Padding(0, 1).Align(lipgloss.Left)
-			}
-		}
-		// Numeric columns right-aligned
-		switch rowType {
-		case breakdownRowTotal:
-			return styles.TotalNumber.Padding(0, 1).Align(lipgloss.Right)
-		case breakdownRowSub:
-			return styles.SubRowLabel.Padding(0, 1).Align(lipgloss.Right)
-		default:
-			return styles.Number.Padding(0, 1).Align(lipgloss.Right)
-		}
-	})
-
-	return styles.SectionTitle.Render("By Directory") + "\n" + t.Render() + "\n"
+	return formatBreakdownTable("By Directory", "Directory", entries, summary.TotalCode, config)
 }
 
 // formatPackageTable creates a pretty table for package breakdown using Charmbracelet lipgloss/table
 func formatPackageTable(summary *Summary, config *OutputConfig) string {
-	// Get appropriate styles based on NoColor setting
-	var styles *Styles
-	if config.NoColor {
-		styles = NoColorStyles()
-	} else {
-		styles = DefaultStyles()
-	}
-
-	// Get sorted package names
+	// Get sorted package names and build entries
 	packages := make([]string, 0, len(summary.ByPackage))
 	for pkg := range summary.ByPackage {
 		packages = append(packages, pkg)
 	}
 	sort.Strings(packages)
 
-	// Calculate total code for percentage calculation
-	totalCode := summary.TotalCode
-
-	// Determine elbow characters based on color mode
-	elbowMiddle := ElbowMiddle
-	elbowLast := ElbowLast
-	if config.NoColor {
-		elbowMiddle = ElbowMiddleASCII
-		elbowLast = ElbowLastASCII
-	}
-
-	// Build rows with type information
-	var rows []breakdownRow
-	var totalFiles, totalCodeSum, totalComments int
-
-	// When combined, show simple rows without sub-breakdown
-	showSubRows := !config.Combined
-
+	entries := make([]breakdownEntry, 0, len(packages))
 	for _, pkg := range packages {
 		stats := summary.ByPackage[pkg]
-		totalFiles += stats.Files
-		totalCodeSum += stats.Code
-		totalComments += stats.Comments
-
-		// Calculate percentage for the main row
-		var pct float64
-		if totalCode > 0 {
-			pct = float64(stats.Code) / float64(totalCode) * 100
-		}
-
-		// Add main package row
-		rows = append(rows, breakdownRow{
-			rowType: breakdownRowMain,
-			data: []string{
-				pkg,
-				formatNumber(stats.Files),
-				formatNumber(stats.Code),
-				formatNumber(stats.Comments),
-				fmt.Sprintf("%.1f%%", pct),
-			},
+		entries = append(entries, breakdownEntry{
+			Label: pkg,
+			Stats: &stats.BaseStats,
 		})
-
-		// Add sub-rows if not combined
-		if showSubRows {
-			// Determine if we have "other" files for this package
-			hasOther := config.ShowAll && stats.OtherFiles > 0
-
-			// Determine elbow prefixes
-			srcPrefix := elbowMiddle
-			testPrefix := elbowMiddle
-			if !hasOther {
-				testPrefix = elbowLast
-			}
-
-			// Source sub-row
-			var srcPct float64
-			if totalCode > 0 {
-				srcPct = float64(stats.SrcCode) / float64(totalCode) * 100
-			}
-			rows = append(rows, breakdownRow{
-				rowType: breakdownRowSub,
-				data: []string{
-					srcPrefix + "src",
-					formatNumber(stats.SrcFiles),
-					formatNumber(stats.SrcCode),
-					formatNumber(stats.SrcComments),
-					fmt.Sprintf("%.1f%%", srcPct),
-				},
-			})
-
-			// Test sub-row
-			var testPct float64
-			if totalCode > 0 {
-				testPct = float64(stats.TestCode) / float64(totalCode) * 100
-			}
-			rows = append(rows, breakdownRow{
-				rowType: breakdownRowSub,
-				data: []string{
-					testPrefix + "test",
-					formatNumber(stats.TestFiles),
-					formatNumber(stats.TestCode),
-					formatNumber(stats.TestComments),
-					fmt.Sprintf("%.1f%%", testPct),
-				},
-			})
-
-			// Other sub-row (only when --all flag is set and there are other files)
-			if hasOther {
-				var otherPct float64
-				if totalCode > 0 {
-					otherPct = float64(stats.OtherCode) / float64(totalCode) * 100
-				}
-				rows = append(rows, breakdownRow{
-					rowType: breakdownRowSub,
-					data: []string{
-						elbowLast + "other",
-						formatNumber(stats.OtherFiles),
-						formatNumber(stats.OtherCode),
-						formatNumber(stats.OtherComments),
-						fmt.Sprintf("%.1f%%", otherPct),
-					},
-				})
-			}
-		}
 	}
 
-	// Add totals row
-	rows = append(rows, breakdownRow{
-		rowType: breakdownRowTotal,
-		data: []string{
-			"Total",
-			formatNumber(totalFiles),
-			formatNumber(totalCodeSum),
-			formatNumber(totalComments),
-			"100.0%",
-		},
-	})
-
-	// Create the table with rounded borders
-	t := table.New().
-		Border(lipgloss.RoundedBorder()).
-		BorderStyle(styles.Border).
-		Headers("Package", "Files", "Code", "Comments", "%")
-
-	// Add all rows
-	for _, row := range rows {
-		t.Row(row.data...)
-	}
-
-	// Style the table: header centered, first column left-aligned, rest right-aligned
-	t.StyleFunc(func(rowIdx, col int) lipgloss.Style {
-		if rowIdx == table.HeaderRow {
-			return styles.Label.Padding(0, 1).Align(lipgloss.Center)
-		}
-		// Get the row type
-		rowType := rows[rowIdx].rowType
-
-		// First column (label) left-aligned
-		if col == 0 {
-			switch rowType {
-			case breakdownRowTotal:
-				return styles.TotalLabel.Padding(0, 1).Align(lipgloss.Left)
-			case breakdownRowSub:
-				return styles.SubRowLabel.Padding(0, 1).Align(lipgloss.Left)
-			default:
-				return styles.Number.Padding(0, 1).Align(lipgloss.Left)
-			}
-		}
-		// Numeric columns right-aligned
-		switch rowType {
-		case breakdownRowTotal:
-			return styles.TotalNumber.Padding(0, 1).Align(lipgloss.Right)
-		case breakdownRowSub:
-			return styles.SubRowLabel.Padding(0, 1).Align(lipgloss.Right)
-		default:
-			return styles.Number.Padding(0, 1).Align(lipgloss.Right)
-		}
-	})
-
-	return styles.SectionTitle.Render("By Package") + "\n" + t.Render() + "\n"
+	return formatBreakdownTable("By Package", "Package", entries, summary.TotalCode, config)
 }
 
 // jsonOutput represents the JSON output structure

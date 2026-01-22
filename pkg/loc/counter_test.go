@@ -750,12 +750,12 @@ func TestMakePathsRelative(t *testing.T) {
 			root: "/Users/joel/projects/loc",
 			absPaths: map[string]*DirectoryStats{
 				"/Users/joel/projects/loc/pkg/loc": {
-					Path:  "/Users/joel/projects/loc/pkg/loc",
-					Files: 10,
+					Path:      "/Users/joel/projects/loc/pkg/loc",
+					BaseStats: BaseStats{Files: 10},
 				},
 				"/Users/joel/projects/loc/cmd/loc": {
-					Path:  "/Users/joel/projects/loc/cmd/loc",
-					Files: 3,
+					Path:      "/Users/joel/projects/loc/cmd/loc",
+					BaseStats: BaseStats{Files: 3},
 				},
 			},
 			expected: map[string]string{
@@ -768,8 +768,8 @@ func TestMakePathsRelative(t *testing.T) {
 			root: "/Users/joel/projects/loc",
 			absPaths: map[string]*DirectoryStats{
 				"/Users/joel/projects/loc": {
-					Path:  "/Users/joel/projects/loc",
-					Files: 2,
+					Path:      "/Users/joel/projects/loc",
+					BaseStats: BaseStats{Files: 2},
 				},
 			},
 			expected: map[string]string{
@@ -781,12 +781,12 @@ func TestMakePathsRelative(t *testing.T) {
 			root: "/home/user/project",
 			absPaths: map[string]*DirectoryStats{
 				"/home/user/project/src/api/v1": {
-					Path:  "/home/user/project/src/api/v1",
-					Files: 5,
+					Path:      "/home/user/project/src/api/v1",
+					BaseStats: BaseStats{Files: 5},
 				},
 				"/home/user/project/src/api/v2": {
-					Path:  "/home/user/project/src/api/v2",
-					Files: 3,
+					Path:      "/home/user/project/src/api/v2",
+					BaseStats: BaseStats{Files: 3},
 				},
 			},
 			expected: map[string]string{
@@ -834,12 +834,14 @@ func TestMakePathsRelativePreservesStats(t *testing.T) {
 	summary := &Summary{
 		ByDirectory: map[string]*DirectoryStats{
 			"/home/user/project/pkg/api": {
-				Path:     "/home/user/project/pkg/api",
-				Files:    10,
-				Lines:    500,
-				Code:     400,
-				Blanks:   50,
-				Comments: 50,
+				Path: "/home/user/project/pkg/api",
+				BaseStats: BaseStats{
+					Files:    10,
+					Lines:    500,
+					Code:     400,
+					Blanks:   50,
+					Comments: 50,
+				},
 			},
 		},
 	}

@@ -131,7 +131,6 @@ func (c *Counter) Count(files []string) (*Summary, error) {
 	// Create channels for work distribution and result collection
 	jobs := make(chan string, len(files))
 	results := make(chan *FileResult, len(files))
-	errors := make(chan error, len(files))
 
 	// Start worker pool
 	var wg sync.WaitGroup
@@ -147,7 +146,8 @@ func (c *Counter) Count(files []string) (*Summary, error) {
 			for path := range jobs {
 				result, err := c.countFile(path)
 				if err != nil {
-					errors <- err
+					// Log error but continue processing other files.
+					// File-level errors (permission denied, etc.) are non-fatal.
 					continue
 				}
 				if result != nil {
@@ -167,7 +167,6 @@ func (c *Counter) Count(files []string) (*Summary, error) {
 	go func() {
 		wg.Wait()
 		close(results)
-		close(errors)
 	}()
 
 	// Collect results and aggregate
@@ -604,33 +603,7 @@ func (s *Summary) addResult(r *FileResult) {
 		langStats = &LanguageStats{Language: r.Language}
 		s.ByLanguage[r.Language] = langStats
 	}
-	langStats.Files++
-	langStats.Lines += r.Lines
-	langStats.Code += r.CodeLines
-	langStats.Blanks += r.BlankLines
-	langStats.Comments += r.CommentLines
-
-	// Update language sub-breakdowns based on category
-	switch r.Category {
-	case FileCategoryTest:
-		langStats.TestFiles++
-		langStats.TestLines += r.Lines
-		langStats.TestCode += r.CodeLines
-		langStats.TestBlanks += r.BlankLines
-		langStats.TestComments += r.CommentLines
-	case FileCategoryOther:
-		langStats.OtherFiles++
-		langStats.OtherLines += r.Lines
-		langStats.OtherCode += r.CodeLines
-		langStats.OtherBlanks += r.BlankLines
-		langStats.OtherComments += r.CommentLines
-	default: // FileCategorySrc
-		langStats.SrcFiles++
-		langStats.SrcLines += r.Lines
-		langStats.SrcCode += r.CodeLines
-		langStats.SrcBlanks += r.BlankLines
-		langStats.SrcComments += r.CommentLines
-	}
+	langStats.AddFile(r)
 
 	// Update directory stats
 	dir := filepath.Dir(r.Path)
@@ -639,33 +612,7 @@ func (s *Summary) addResult(r *FileResult) {
 		dirStats = &DirectoryStats{Path: dir}
 		s.ByDirectory[dir] = dirStats
 	}
-	dirStats.Files++
-	dirStats.Lines += r.Lines
-	dirStats.Code += r.CodeLines
-	dirStats.Blanks += r.BlankLines
-	dirStats.Comments += r.CommentLines
-
-	// Update directory sub-breakdowns based on category
-	switch r.Category {
-	case FileCategoryTest:
-		dirStats.TestFiles++
-		dirStats.TestLines += r.Lines
-		dirStats.TestCode += r.CodeLines
-		dirStats.TestBlanks += r.BlankLines
-		dirStats.TestComments += r.CommentLines
-	case FileCategoryOther:
-		dirStats.OtherFiles++
-		dirStats.OtherLines += r.Lines
-		dirStats.OtherCode += r.CodeLines
-		dirStats.OtherBlanks += r.BlankLines
-		dirStats.OtherComments += r.CommentLines
-	default: // FileCategorySrc
-		dirStats.SrcFiles++
-		dirStats.SrcLines += r.Lines
-		dirStats.SrcCode += r.CodeLines
-		dirStats.SrcBlanks += r.BlankLines
-		dirStats.SrcComments += r.CommentLines
-	}
+	dirStats.AddFile(r)
 
 	// Update package stats
 	pkgStats, ok := s.ByPackage[r.Package]
@@ -673,31 +620,5 @@ func (s *Summary) addResult(r *FileResult) {
 		pkgStats = &PackageStats{Package: r.Package}
 		s.ByPackage[r.Package] = pkgStats
 	}
-	pkgStats.Files++
-	pkgStats.Lines += r.Lines
-	pkgStats.Code += r.CodeLines
-	pkgStats.Blanks += r.BlankLines
-	pkgStats.Comments += r.CommentLines
-
-	// Update package sub-breakdowns based on category
-	switch r.Category {
-	case FileCategoryTest:
-		pkgStats.TestFiles++
-		pkgStats.TestLines += r.Lines
-		pkgStats.TestCode += r.CodeLines
-		pkgStats.TestBlanks += r.BlankLines
-		pkgStats.TestComments += r.CommentLines
-	case FileCategoryOther:
-		pkgStats.OtherFiles++
-		pkgStats.OtherLines += r.Lines
-		pkgStats.OtherCode += r.CodeLines
-		pkgStats.OtherBlanks += r.BlankLines
-		pkgStats.OtherComments += r.CommentLines
-	default: // FileCategorySrc
-		pkgStats.SrcFiles++
-		pkgStats.SrcLines += r.Lines
-		pkgStats.SrcCode += r.CodeLines
-		pkgStats.SrcBlanks += r.BlankLines
-		pkgStats.SrcComments += r.CommentLines
-	}
+	pkgStats.AddFile(r)
 }
