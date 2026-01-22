@@ -1,13 +1,26 @@
 package loc
 
 import (
-	"bufio"
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
 )
+
+// Buffer pool for efficient file reading
+var bufferPool = sync.Pool{
+	New: func() any {
+		// 32KB buffer is efficient for most file systems
+		buf := make([]byte, 32*1024)
+		return &buf
+	},
+}
+
+// binaryCheckSize is the number of bytes to read for binary file detection
+const binaryCheckSize = 8192
 
 // Counter performs parallel line counting on source files
 type Counter struct {
@@ -53,7 +66,9 @@ func (c *Counter) Count(files []string) (*Summary, error) {
 					errors <- err
 					continue
 				}
-				results <- result
+				if result != nil {
+					results <- result
+				}
 			}
 		}()
 	}
@@ -80,13 +95,32 @@ func (c *Counter) Count(files []string) (*Summary, error) {
 	return summary, nil
 }
 
-// countFile counts lines in a single file
+// countFile counts lines in a single file using streaming/buffered reading.
+// Returns nil result (not error) for files that should be skipped (binary, permission denied).
 func (c *Counter) countFile(path string) (*FileResult, error) {
 	file, err := os.Open(path)
 	if err != nil {
+		// Permission denied or other errors - skip file gracefully
+		if os.IsPermission(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	defer file.Close()
+
+	// Check if file is binary by looking for null bytes in first 8KB
+	isBinary, err := c.isBinaryFile(file)
+	if err != nil {
+		return nil, err
+	}
+	if isBinary {
+		return nil, nil // Skip binary files
+	}
+
+	// Seek back to beginning after binary check
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
 
 	// Determine language from extension
 	ext := filepath.Ext(path)
@@ -111,41 +145,120 @@ func (c *Counter) countFile(path string) (*FileResult, error) {
 		Package:  pkg,
 	}
 
-	scanner := bufio.NewScanner(file)
-	inBlockComment := false
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		result.Lines++
-
-		// Check if blank line
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			result.BlankLines++
-			continue
-		}
-
-		// Count this line based on comment status
-		lineType := c.classifyLine(trimmed, lang, &inBlockComment)
-
-		switch lineType {
-		case lineTypeBlank:
-			result.BlankLines++
-		case lineTypeComment:
-			result.CommentLines++
-		case lineTypeCode:
-			result.CodeLines++
-		case lineTypeMixed:
-			// Mixed lines count as code (contain both code and comments)
-			result.CodeLines++
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
+	// Count lines using streaming reader with buffer pool
+	err = c.countLinesStreaming(file, lang, result)
+	if err != nil {
 		return nil, err
 	}
 
 	return result, nil
+}
+
+// isBinaryFile checks if a file is binary by looking for null bytes in the first 8KB
+func (c *Counter) isBinaryFile(file *os.File) (bool, error) {
+	buf := make([]byte, binaryCheckSize)
+	n, err := file.Read(buf)
+	if err != nil && err != io.EOF {
+		return false, err
+	}
+	if n == 0 {
+		return false, nil // Empty file is not binary
+	}
+
+	// Check for null bytes (common indicator of binary content)
+	return bytes.Contains(buf[:n], []byte{0}), nil
+}
+
+// countLinesStreaming counts lines using buffered reading for memory efficiency.
+// Handles mixed line endings (LF, CRLF, CR) and files without trailing newline.
+func (c *Counter) countLinesStreaming(file *os.File, lang *Language, result *FileResult) error {
+	// Get buffer from pool
+	bufPtr := bufferPool.Get().(*[]byte)
+	buf := *bufPtr
+	defer bufferPool.Put(bufPtr)
+
+	var lineBuilder strings.Builder
+	inBlockComment := false
+	lastCharWasCR := false
+	hasContent := false
+
+	for {
+		n, err := file.Read(buf)
+		if n > 0 {
+			hasContent = true
+			for i := 0; i < n; i++ {
+				ch := buf[i]
+
+				// Handle line endings: LF, CRLF, CR
+				if ch == '\n' {
+					// LF or CRLF ending
+					if lastCharWasCR {
+						// CRLF - we already processed CR, skip LF
+						lastCharWasCR = false
+						continue
+					}
+					c.processLine(lineBuilder.String(), lang, result, &inBlockComment)
+					lineBuilder.Reset()
+					lastCharWasCR = false
+				} else if ch == '\r' {
+					// CR - could be CRLF or old Mac CR-only
+					c.processLine(lineBuilder.String(), lang, result, &inBlockComment)
+					lineBuilder.Reset()
+					lastCharWasCR = true
+				} else {
+					if lastCharWasCR {
+						// Previous CR was standalone (old Mac style)
+						lastCharWasCR = false
+					}
+					lineBuilder.WriteByte(ch)
+				}
+			}
+		}
+
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	// Handle file without trailing newline
+	if lineBuilder.Len() > 0 || lastCharWasCR {
+		if lineBuilder.Len() > 0 {
+			c.processLine(lineBuilder.String(), lang, result, &inBlockComment)
+		}
+	} else if !hasContent {
+		// Empty file - no lines to count
+		return nil
+	}
+
+	return nil
+}
+
+// processLine classifies and counts a single line
+func (c *Counter) processLine(line string, lang *Language, result *FileResult, inBlockComment *bool) {
+	result.Lines++
+
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" {
+		result.BlankLines++
+		return
+	}
+
+	lineType := c.classifyLine(trimmed, lang, inBlockComment)
+
+	switch lineType {
+	case lineTypeBlank:
+		result.BlankLines++
+	case lineTypeComment:
+		result.CommentLines++
+	case lineTypeCode:
+		result.CodeLines++
+	case lineTypeMixed:
+		// Mixed lines count as code (contain both code and comments)
+		result.CodeLines++
+	}
 }
 
 // lineType represents the classification of a source line
