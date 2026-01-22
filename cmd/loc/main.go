@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 
 	"github.com/alethi-co/loc/pkg/loc"
@@ -120,6 +121,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	summary, err := counter.Count(files)
 	if err != nil {
 		return fmt.Errorf("counting failed: %w", err)
+	}
+
+	// Convert directory paths to relative paths for cleaner output
+	absPath, err := filepath.Abs(path)
+	if err == nil {
+		summary.MakePathsRelative(absPath)
 	}
 
 	// Determine if colors should be disabled:

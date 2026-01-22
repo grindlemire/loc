@@ -737,3 +737,134 @@ continues here
 		t.Errorf("expected 1 comment line, got %d", summary.TotalComments)
 	}
 }
+
+func TestMakePathsRelative(t *testing.T) {
+	tests := []struct {
+		name     string
+		root     string
+		absPaths map[string]*DirectoryStats
+		expected map[string]string // key -> expected relative path
+	}{
+		{
+			name: "basic relative paths",
+			root: "/Users/joel/projects/loc",
+			absPaths: map[string]*DirectoryStats{
+				"/Users/joel/projects/loc/pkg/loc": {
+					Path:  "/Users/joel/projects/loc/pkg/loc",
+					Files: 10,
+				},
+				"/Users/joel/projects/loc/cmd/loc": {
+					Path:  "/Users/joel/projects/loc/cmd/loc",
+					Files: 3,
+				},
+			},
+			expected: map[string]string{
+				"pkg/loc": "pkg/loc",
+				"cmd/loc": "cmd/loc",
+			},
+		},
+		{
+			name: "root directory becomes dot",
+			root: "/Users/joel/projects/loc",
+			absPaths: map[string]*DirectoryStats{
+				"/Users/joel/projects/loc": {
+					Path:  "/Users/joel/projects/loc",
+					Files: 2,
+				},
+			},
+			expected: map[string]string{
+				".": ".",
+			},
+		},
+		{
+			name: "nested directories",
+			root: "/home/user/project",
+			absPaths: map[string]*DirectoryStats{
+				"/home/user/project/src/api/v1": {
+					Path:  "/home/user/project/src/api/v1",
+					Files: 5,
+				},
+				"/home/user/project/src/api/v2": {
+					Path:  "/home/user/project/src/api/v2",
+					Files: 3,
+				},
+			},
+			expected: map[string]string{
+				"src/api/v1": "src/api/v1",
+				"src/api/v2": "src/api/v2",
+			},
+		},
+		{
+			name:     "empty map",
+			root:     "/home/user/project",
+			absPaths: map[string]*DirectoryStats{},
+			expected: map[string]string{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			summary := &Summary{
+				ByDirectory: tc.absPaths,
+			}
+
+			summary.MakePathsRelative(tc.root)
+
+			// Check that we have the expected number of entries
+			if len(summary.ByDirectory) != len(tc.expected) {
+				t.Errorf("expected %d directories, got %d", len(tc.expected), len(summary.ByDirectory))
+			}
+
+			// Check that each expected path exists and has the correct Path field
+			for expectedKey, expectedPath := range tc.expected {
+				stats, ok := summary.ByDirectory[expectedKey]
+				if !ok {
+					t.Errorf("expected key %q not found in ByDirectory", expectedKey)
+					continue
+				}
+				if stats.Path != expectedPath {
+					t.Errorf("expected Path field to be %q, got %q", expectedPath, stats.Path)
+				}
+			}
+		})
+	}
+}
+
+func TestMakePathsRelativePreservesStats(t *testing.T) {
+	summary := &Summary{
+		ByDirectory: map[string]*DirectoryStats{
+			"/home/user/project/pkg/api": {
+				Path:     "/home/user/project/pkg/api",
+				Files:    10,
+				Lines:    500,
+				Code:     400,
+				Blanks:   50,
+				Comments: 50,
+			},
+		},
+	}
+
+	summary.MakePathsRelative("/home/user/project")
+
+	// Check that stats are preserved
+	stats, ok := summary.ByDirectory["pkg/api"]
+	if !ok {
+		t.Fatal("expected pkg/api in ByDirectory")
+	}
+
+	if stats.Files != 10 {
+		t.Errorf("expected Files=10, got %d", stats.Files)
+	}
+	if stats.Lines != 500 {
+		t.Errorf("expected Lines=500, got %d", stats.Lines)
+	}
+	if stats.Code != 400 {
+		t.Errorf("expected Code=400, got %d", stats.Code)
+	}
+	if stats.Blanks != 50 {
+		t.Errorf("expected Blanks=50, got %d", stats.Blanks)
+	}
+	if stats.Comments != 50 {
+		t.Errorf("expected Comments=50, got %d", stats.Comments)
+	}
+}

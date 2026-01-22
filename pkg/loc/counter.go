@@ -458,6 +458,35 @@ func newSummary() *Summary {
 	}
 }
 
+// MakePathsRelative converts absolute directory paths in ByDirectory to paths
+// relative to the given root directory. If a directory equals the root, it
+// becomes "." (current directory).
+func (s *Summary) MakePathsRelative(root string) {
+	if len(s.ByDirectory) == 0 {
+		return
+	}
+
+	// Create new map with relative paths
+	newByDirectory := make(map[string]*DirectoryStats, len(s.ByDirectory))
+
+	for absPath, stats := range s.ByDirectory {
+		relPath, err := filepath.Rel(root, absPath)
+		if err != nil {
+			// If we can't make it relative, keep the original
+			relPath = absPath
+		}
+
+		// Normalize to forward slashes for consistent display
+		relPath = filepath.ToSlash(relPath)
+
+		// Update the stats Path field as well
+		stats.Path = relPath
+		newByDirectory[relPath] = stats
+	}
+
+	s.ByDirectory = newByDirectory
+}
+
 // addResult adds a FileResult to the Summary
 func (s *Summary) addResult(r *FileResult) {
 	s.TotalFiles++
