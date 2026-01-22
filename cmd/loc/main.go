@@ -156,6 +156,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		ByPackage:  config.ByPackage,
 		NoColor:    noColor,
 		Combined:   config.Combined,
+		ShowAll:    config.All,
 	}
 
 	output := loc.FormatOutput(summary, outputConfig)

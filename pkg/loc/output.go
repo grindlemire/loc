@@ -27,6 +27,7 @@ type OutputConfig struct {
 	ByPackage  bool
 	NoColor    bool
 	Combined   bool // When true, don't show src/test/other breakdown
+	ShowAll    bool // When true, include "other" files in the breakdown
 }
 
 // FormatOutput formats a Summary according to the given OutputConfig
@@ -64,23 +65,92 @@ func formatNumber(n int) string {
 	return result.String()
 }
 
+// hasOtherFiles returns true if the summary has any "other" files (config, docs, etc.)
+func hasOtherFiles(summary *Summary) bool {
+	return summary.OtherFiles > 0
+}
+
+// subRowData holds the data for a single sub-row in the breakdown
+type subRowData struct {
+	label    string
+	files    int
+	code     int
+	comments int
+}
+
+// renderSubRows generates sub-rows with proper elbow prefixes for src/test/other breakdown.
+// It handles 2-item (src/test) vs 3-item (src/test/other) cases.
+// Returns a slice of row data (label with elbow prefix, files, code, comments).
+func renderSubRows(summary *Summary, showOther bool, noColor bool) []subRowData {
+	var rows []subRowData
+
+	// Determine elbow characters based on color mode
+	elbowMiddle := ElbowMiddle
+	elbowLast := ElbowLast
+	if noColor {
+		elbowMiddle = ElbowMiddleASCII
+		elbowLast = ElbowLastASCII
+	}
+
+	// Always have src and test
+	// If we're showing other and there are other files, use middle elbow for src and test
+	// Otherwise, use middle elbow for src and last elbow for test
+	hasOther := showOther && hasOtherFiles(summary)
+
+	// Source row
+	srcPrefix := elbowMiddle
+	if !hasOther && summary.TestFiles == 0 {
+		// Only src files exist
+		srcPrefix = elbowLast
+	}
+	rows = append(rows, subRowData{
+		label:    srcPrefix + "src",
+		files:    summary.SrcFiles,
+		code:     summary.SrcCode,
+		comments: summary.SrcComments,
+	})
+
+	// Test row (only if there are test files or if we want to always show it)
+	testPrefix := elbowMiddle
+	if !hasOther {
+		testPrefix = elbowLast
+	}
+	rows = append(rows, subRowData{
+		label:    testPrefix + "test",
+		files:    summary.TestFiles,
+		code:     summary.TestCode,
+		comments: summary.TestComments,
+	})
+
+	// Other row (only when --all flag is set and there are other files)
+	if hasOther {
+		rows = append(rows, subRowData{
+			label:    elbowLast + "other",
+			files:    summary.OtherFiles,
+			code:     summary.OtherCode,
+			comments: summary.OtherComments,
+		})
+	}
+
+	return rows
+}
+
 // formatPretty formats the summary as pretty terminal output with styled tables
 func formatPretty(summary *Summary, config *OutputConfig) string {
-	// Check if any breakdown flags are set
-	hasBreakdown := config.ByLanguage || config.ByDir || config.ByPackage || !config.Combined
+	// Check if any breakdown table flags are set (language, dir, package)
+	hasBreakdownTables := config.ByLanguage || config.ByDir || config.ByPackage
 
-	// If no breakdown flags, show the summary table
-	if !hasBreakdown {
+	// If no breakdown table flags, show the summary table
+	// (which handles both combined and non-combined views with elbow sub-rows)
+	if !hasBreakdownTables {
 		return formatSummaryTable(summary, config)
 	}
 
 	// Otherwise, show breakdown tables
 	var sb strings.Builder
 
-	// Show test breakdown if not combined (show first as it's a high-level split)
-	if !config.Combined {
-		sb.WriteString(formatTestTable(summary, config))
-	}
+	// Show summary table first (with src/test/other breakdown if not combined)
+	sb.WriteString(formatSummaryTable(summary, config))
 
 	// Show breakdowns if requested
 	if config.ByLanguage && len(summary.ByLanguage) > 0 {
@@ -117,23 +187,82 @@ func formatSummaryTable(summary *Summary, config *OutputConfig) string {
 		styles = DefaultStyles()
 	}
 
+	// When --combined is set, show simple table without breakdown
+	if config.Combined {
+		t := table.New().
+			Border(lipgloss.RoundedBorder()).
+			BorderStyle(styles.Border).
+			Headers("Files", "Code", "Comments").
+			Row(
+				formatNumber(summary.TotalFiles),
+				formatNumber(summary.TotalCode),
+				formatNumber(summary.TotalComments),
+			)
+
+		// Style the header row with accent color
+		t.StyleFunc(func(row, col int) lipgloss.Style {
+			if row == table.HeaderRow {
+				return styles.Label.Padding(0, 1).Align(lipgloss.Center)
+			}
+			// Data rows: right-align numbers
+			return styles.Number.Padding(0, 1).Align(lipgloss.Right)
+		})
+
+		return t.Render() + "\n"
+	}
+
+	// Default view: show Total row with elbow sub-rows for src/test/other
+	// Build the rows
+	var rows [][]string
+
+	// Total row
+	rows = append(rows, []string{
+		"Total",
+		formatNumber(summary.TotalFiles),
+		formatNumber(summary.TotalCode),
+		formatNumber(summary.TotalComments),
+	})
+
+	// Add sub-rows with elbow prefixes
+	subRows := renderSubRows(summary, config.ShowAll, config.NoColor)
+	for _, sr := range subRows {
+		rows = append(rows, []string{
+			sr.label,
+			formatNumber(sr.files),
+			formatNumber(sr.code),
+			formatNumber(sr.comments),
+		})
+	}
+
 	// Create the table with rounded borders
 	t := table.New().
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(styles.Border).
-		Headers("Files", "Code", "Comments").
-		Row(
-			formatNumber(summary.TotalFiles),
-			formatNumber(summary.TotalCode),
-			formatNumber(summary.TotalComments),
-		)
+		Headers("", "Files", "Code", "Comments")
 
-	// Style the header row with accent color
+	// Add all rows
+	for _, row := range rows {
+		t.Row(row...)
+	}
+
+	// Style the table: header centered, first column left-aligned, rest right-aligned
 	t.StyleFunc(func(row, col int) lipgloss.Style {
 		if row == table.HeaderRow {
 			return styles.Label.Padding(0, 1).Align(lipgloss.Center)
 		}
-		// Data rows: right-align numbers
+		// First column (label) left-aligned
+		if col == 0 {
+			// Use TotalLabel style for the Total row (row 0)
+			if row == 0 {
+				return styles.TotalLabel.Padding(0, 1).Align(lipgloss.Left)
+			}
+			// Use SubRowLabel style for sub-rows
+			return styles.SubRowLabel.Padding(0, 1).Align(lipgloss.Left)
+		}
+		// Numeric columns right-aligned
+		if row == 0 {
+			return styles.TotalNumber.Padding(0, 1).Align(lipgloss.Right)
+		}
 		return styles.Number.Padding(0, 1).Align(lipgloss.Right)
 	})
 
