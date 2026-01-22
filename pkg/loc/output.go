@@ -1062,6 +1062,9 @@ func formatJSON(summary *Summary, config *OutputConfig) string {
 }
 
 // formatRaw formats the summary as labeled, one stat per line
+// Default: shows src/test/other breakdown
+// --combined: shows only totals
+// --all: includes "other" stats when present
 func formatRaw(summary *Summary, config *OutputConfig) string {
 	var sb strings.Builder
 
@@ -1072,13 +1075,18 @@ func formatRaw(summary *Summary, config *OutputConfig) string {
 	sb.WriteString(fmt.Sprintf("Blanks: %d\n", summary.TotalBlanks))
 	sb.WriteString(fmt.Sprintf("Comments: %d\n", summary.TotalComments))
 
-	// Add test breakdown if not combined
+	// Add src/test/other breakdown if not combined
 	if !config.Combined {
 		sb.WriteString("\n")
 		sb.WriteString(fmt.Sprintf("Source Files: %d\n", summary.SrcFiles))
 		sb.WriteString(fmt.Sprintf("Source Code: %d\n", summary.SrcCode))
 		sb.WriteString(fmt.Sprintf("Test Files: %d\n", summary.TestFiles))
 		sb.WriteString(fmt.Sprintf("Test Code: %d\n", summary.TestCode))
+		// Include "other" only when --all is set and there are other files
+		if config.ShowAll && hasOtherFiles(summary) {
+			sb.WriteString(fmt.Sprintf("Other Files: %d\n", summary.OtherFiles))
+			sb.WriteString(fmt.Sprintf("Other Code: %d\n", summary.OtherCode))
+		}
 	}
 
 	// Add language breakdown if requested
@@ -1093,6 +1101,17 @@ func formatRaw(summary *Summary, config *OutputConfig) string {
 			stats := summary.ByLanguage[lang]
 			sb.WriteString(fmt.Sprintf("%s: %d files, %d lines, %d code\n",
 				lang, stats.Files, stats.Lines, stats.Code))
+			// Add sub-breakdown when not combined
+			if !config.Combined {
+				sb.WriteString(fmt.Sprintf("  src: %d files, %d code\n",
+					stats.SrcFiles, stats.SrcCode))
+				sb.WriteString(fmt.Sprintf("  test: %d files, %d code\n",
+					stats.TestFiles, stats.TestCode))
+				if config.ShowAll && stats.OtherFiles > 0 {
+					sb.WriteString(fmt.Sprintf("  other: %d files, %d code\n",
+						stats.OtherFiles, stats.OtherCode))
+				}
+			}
 		}
 	}
 
@@ -1106,8 +1125,19 @@ func formatRaw(summary *Summary, config *OutputConfig) string {
 		sort.Strings(dirs)
 		for _, dir := range dirs {
 			stats := summary.ByDirectory[dir]
-			sb.WriteString(fmt.Sprintf("%s: %d files, %d lines\n",
-				dir, stats.Files, stats.Lines))
+			sb.WriteString(fmt.Sprintf("%s: %d files, %d lines, %d code\n",
+				dir, stats.Files, stats.Lines, stats.Code))
+			// Add sub-breakdown when not combined
+			if !config.Combined {
+				sb.WriteString(fmt.Sprintf("  src: %d files, %d code\n",
+					stats.SrcFiles, stats.SrcCode))
+				sb.WriteString(fmt.Sprintf("  test: %d files, %d code\n",
+					stats.TestFiles, stats.TestCode))
+				if config.ShowAll && stats.OtherFiles > 0 {
+					sb.WriteString(fmt.Sprintf("  other: %d files, %d code\n",
+						stats.OtherFiles, stats.OtherCode))
+				}
+			}
 		}
 	}
 
@@ -1123,6 +1153,17 @@ func formatRaw(summary *Summary, config *OutputConfig) string {
 			stats := summary.ByPackage[pkg]
 			sb.WriteString(fmt.Sprintf("%s: %d files, %d lines, %d code\n",
 				pkg, stats.Files, stats.Lines, stats.Code))
+			// Add sub-breakdown when not combined
+			if !config.Combined {
+				sb.WriteString(fmt.Sprintf("  src: %d files, %d code\n",
+					stats.SrcFiles, stats.SrcCode))
+				sb.WriteString(fmt.Sprintf("  test: %d files, %d code\n",
+					stats.TestFiles, stats.TestCode))
+				if config.ShowAll && stats.OtherFiles > 0 {
+					sb.WriteString(fmt.Sprintf("  other: %d files, %d code\n",
+						stats.OtherFiles, stats.OtherCode))
+				}
+			}
 		}
 	}
 
