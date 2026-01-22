@@ -868,3 +868,476 @@ func TestMakePathsRelativePreservesStats(t *testing.T) {
 		t.Errorf("expected Comments=50, got %d", stats.Comments)
 	}
 }
+
+// TestCategorizeFile tests the categorizeFile function
+func TestCategorizeFile(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		expected FileCategory
+	}{
+		// Source files
+		{"Go source file", "main.go", FileCategorySrc},
+		{"Python source file", "app.py", FileCategorySrc},
+		{"JavaScript source file", "index.js", FileCategorySrc},
+		{"TypeScript source file", "component.tsx", FileCategorySrc},
+		{"Java source file", "App.java", FileCategorySrc},
+
+		// Test files
+		{"Go test file", "main_test.go", FileCategoryTest},
+		{"Python test file prefix", "test_app.py", FileCategoryTest},
+		{"Python test file suffix", "app_test.py", FileCategoryTest},
+		{"JavaScript test file", "app.test.js", FileCategoryTest},
+		{"TypeScript spec file", "component.spec.tsx", FileCategoryTest},
+		{"Java test file", "AppTest.java", FileCategoryTest},
+		{"Ruby spec file", "model_spec.rb", FileCategoryTest},
+
+		// Other files (config, docs, build)
+		{"YAML config file", "config.yaml", FileCategoryOther},
+		{"JSON config file", "package.json", FileCategoryOther},
+		{"TOML config file", "Cargo.toml", FileCategoryOther},
+		{"Markdown doc file", "README.md", FileCategoryOther},
+		{"XML file", "pom.xml", FileCategoryOther},
+		{"Makefile", "Makefile", FileCategoryOther},
+		{"Dockerfile", "Dockerfile", FileCategoryOther},
+		{"INI config file", "config.ini", FileCategoryOther},
+		{"Text file", "notes.txt", FileCategoryOther},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := categorizeFile(tc.path)
+			if result != tc.expected {
+				t.Errorf("categorizeFile(%q) = %v, want %v", tc.path, result, tc.expected)
+			}
+		})
+	}
+}
+
+// TestIsOtherFile tests the IsOtherFile function
+func TestIsOtherFile(t *testing.T) {
+	tests := []struct {
+		path     string
+		expected bool
+	}{
+		// Other files should return true
+		{"config.yaml", true},
+		{"config.yml", true},
+		{"package.json", true},
+		{"Cargo.toml", true},
+		{"README.md", true},
+		{"docs.markdown", true},
+		{"config.ini", true},
+		{"settings.cfg", true},
+		{"pom.xml", true},
+		{"app.properties", true},
+		{"notes.txt", true},
+		{"guide.rst", true},
+		{"build.mk", true},
+		{"Makefile", true},
+		{"Dockerfile", true},
+
+		// Source files should return false
+		{"main.go", false},
+		{"app.py", false},
+		{"index.js", false},
+		{"component.tsx", false},
+		{"App.java", false},
+		{"lib.rs", false},
+		{"main.c", false},
+
+		// Test files should return false
+		{"main_test.go", false},
+		{"test_app.py", false},
+		{"app.test.js", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.path, func(t *testing.T) {
+			result := IsOtherFile(tc.path)
+			if result != tc.expected {
+				t.Errorf("IsOtherFile(%q) = %v, want %v", tc.path, result, tc.expected)
+			}
+		})
+	}
+}
+
+// TestSummaryAddResultCategories tests that addResult correctly categorizes files
+func TestSummaryAddResultCategories(t *testing.T) {
+	t.Run("source file adds to src stats", func(t *testing.T) {
+		summary := newSummary()
+		result := &FileResult{
+			Path:         "/project/main.go",
+			Language:     "Go",
+			Package:      "main",
+			Lines:        10,
+			CodeLines:    8,
+			BlankLines:   1,
+			CommentLines: 1,
+			Category:     FileCategorySrc,
+		}
+
+		summary.addResult(result)
+
+		// Check total stats
+		if summary.TotalFiles != 1 {
+			t.Errorf("expected TotalFiles=1, got %d", summary.TotalFiles)
+		}
+		if summary.TotalCode != 8 {
+			t.Errorf("expected TotalCode=8, got %d", summary.TotalCode)
+		}
+
+		// Check src-specific stats
+		if summary.SrcFiles != 1 {
+			t.Errorf("expected SrcFiles=1, got %d", summary.SrcFiles)
+		}
+		if summary.SrcCode != 8 {
+			t.Errorf("expected SrcCode=8, got %d", summary.SrcCode)
+		}
+		if summary.SrcLines != 10 {
+			t.Errorf("expected SrcLines=10, got %d", summary.SrcLines)
+		}
+
+		// Test files should be 0
+		if summary.TestFiles != 0 {
+			t.Errorf("expected TestFiles=0, got %d", summary.TestFiles)
+		}
+
+		// Other files should be 0
+		if summary.OtherFiles != 0 {
+			t.Errorf("expected OtherFiles=0, got %d", summary.OtherFiles)
+		}
+	})
+
+	t.Run("test file adds to test stats", func(t *testing.T) {
+		summary := newSummary()
+		result := &FileResult{
+			Path:         "/project/main_test.go",
+			Language:     "Go",
+			Package:      "main",
+			Lines:        20,
+			CodeLines:    15,
+			BlankLines:   3,
+			CommentLines: 2,
+			Category:     FileCategoryTest,
+		}
+
+		summary.addResult(result)
+
+		// Check total stats
+		if summary.TotalFiles != 1 {
+			t.Errorf("expected TotalFiles=1, got %d", summary.TotalFiles)
+		}
+		if summary.TotalCode != 15 {
+			t.Errorf("expected TotalCode=15, got %d", summary.TotalCode)
+		}
+
+		// Check test-specific stats
+		if summary.TestFiles != 1 {
+			t.Errorf("expected TestFiles=1, got %d", summary.TestFiles)
+		}
+		if summary.TestCode != 15 {
+			t.Errorf("expected TestCode=15, got %d", summary.TestCode)
+		}
+		if summary.TestLines != 20 {
+			t.Errorf("expected TestLines=20, got %d", summary.TestLines)
+		}
+
+		// Src files should be 0
+		if summary.SrcFiles != 0 {
+			t.Errorf("expected SrcFiles=0, got %d", summary.SrcFiles)
+		}
+	})
+
+	t.Run("other file adds to other stats", func(t *testing.T) {
+		summary := newSummary()
+		result := &FileResult{
+			Path:         "/project/config.yaml",
+			Language:     "YAML",
+			Package:      "project",
+			Lines:        30,
+			CodeLines:    25,
+			BlankLines:   5,
+			CommentLines: 0,
+			Category:     FileCategoryOther,
+		}
+
+		summary.addResult(result)
+
+		// Check total stats
+		if summary.TotalFiles != 1 {
+			t.Errorf("expected TotalFiles=1, got %d", summary.TotalFiles)
+		}
+		if summary.TotalCode != 25 {
+			t.Errorf("expected TotalCode=25, got %d", summary.TotalCode)
+		}
+
+		// Check other-specific stats
+		if summary.OtherFiles != 1 {
+			t.Errorf("expected OtherFiles=1, got %d", summary.OtherFiles)
+		}
+		if summary.OtherCode != 25 {
+			t.Errorf("expected OtherCode=25, got %d", summary.OtherCode)
+		}
+		if summary.OtherLines != 30 {
+			t.Errorf("expected OtherLines=30, got %d", summary.OtherLines)
+		}
+
+		// Src and test files should be 0
+		if summary.SrcFiles != 0 {
+			t.Errorf("expected SrcFiles=0, got %d", summary.SrcFiles)
+		}
+		if summary.TestFiles != 0 {
+			t.Errorf("expected TestFiles=0, got %d", summary.TestFiles)
+		}
+	})
+
+	t.Run("mixed file categories", func(t *testing.T) {
+		summary := newSummary()
+
+		// Add a source file
+		summary.addResult(&FileResult{
+			Path:      "/project/main.go",
+			Language:  "Go",
+			Package:   "main",
+			Lines:     10,
+			CodeLines: 8,
+			Category:  FileCategorySrc,
+		})
+
+		// Add a test file
+		summary.addResult(&FileResult{
+			Path:      "/project/main_test.go",
+			Language:  "Go",
+			Package:   "main",
+			Lines:     20,
+			CodeLines: 15,
+			Category:  FileCategoryTest,
+		})
+
+		// Add an other file
+		summary.addResult(&FileResult{
+			Path:      "/project/config.yaml",
+			Language:  "YAML",
+			Package:   "project",
+			Lines:     5,
+			CodeLines: 4,
+			Category:  FileCategoryOther,
+		})
+
+		// Check total stats
+		if summary.TotalFiles != 3 {
+			t.Errorf("expected TotalFiles=3, got %d", summary.TotalFiles)
+		}
+		if summary.TotalCode != 27 { // 8 + 15 + 4
+			t.Errorf("expected TotalCode=27, got %d", summary.TotalCode)
+		}
+		if summary.TotalLines != 35 { // 10 + 20 + 5
+			t.Errorf("expected TotalLines=35, got %d", summary.TotalLines)
+		}
+
+		// Check category-specific stats
+		if summary.SrcFiles != 1 {
+			t.Errorf("expected SrcFiles=1, got %d", summary.SrcFiles)
+		}
+		if summary.SrcCode != 8 {
+			t.Errorf("expected SrcCode=8, got %d", summary.SrcCode)
+		}
+		if summary.TestFiles != 1 {
+			t.Errorf("expected TestFiles=1, got %d", summary.TestFiles)
+		}
+		if summary.TestCode != 15 {
+			t.Errorf("expected TestCode=15, got %d", summary.TestCode)
+		}
+		if summary.OtherFiles != 1 {
+			t.Errorf("expected OtherFiles=1, got %d", summary.OtherFiles)
+		}
+		if summary.OtherCode != 4 {
+			t.Errorf("expected OtherCode=4, got %d", summary.OtherCode)
+		}
+	})
+}
+
+// TestLanguageStatsSubBreakdown tests that language stats track src/test/other breakdown
+func TestLanguageStatsSubBreakdown(t *testing.T) {
+	summary := newSummary()
+
+	// Add Go source file
+	summary.addResult(&FileResult{
+		Path:      "/project/main.go",
+		Language:  "Go",
+		Package:   "main",
+		Lines:     100,
+		CodeLines: 80,
+		Category:  FileCategorySrc,
+	})
+
+	// Add Go test file
+	summary.addResult(&FileResult{
+		Path:      "/project/main_test.go",
+		Language:  "Go",
+		Package:   "main",
+		Lines:     50,
+		CodeLines: 40,
+		Category:  FileCategoryTest,
+	})
+
+	// Check language stats
+	goStats := summary.ByLanguage["Go"]
+	if goStats == nil {
+		t.Fatal("expected Go language stats")
+	}
+
+	// Total for language
+	if goStats.Files != 2 {
+		t.Errorf("expected Go Files=2, got %d", goStats.Files)
+	}
+	if goStats.Code != 120 { // 80 + 40
+		t.Errorf("expected Go Code=120, got %d", goStats.Code)
+	}
+
+	// Src sub-breakdown
+	if goStats.SrcFiles != 1 {
+		t.Errorf("expected Go SrcFiles=1, got %d", goStats.SrcFiles)
+	}
+	if goStats.SrcCode != 80 {
+		t.Errorf("expected Go SrcCode=80, got %d", goStats.SrcCode)
+	}
+
+	// Test sub-breakdown
+	if goStats.TestFiles != 1 {
+		t.Errorf("expected Go TestFiles=1, got %d", goStats.TestFiles)
+	}
+	if goStats.TestCode != 40 {
+		t.Errorf("expected Go TestCode=40, got %d", goStats.TestCode)
+	}
+
+	// Other should be 0
+	if goStats.OtherFiles != 0 {
+		t.Errorf("expected Go OtherFiles=0, got %d", goStats.OtherFiles)
+	}
+}
+
+// TestDirectoryStatsSubBreakdown tests that directory stats track src/test/other breakdown
+func TestDirectoryStatsSubBreakdown(t *testing.T) {
+	summary := newSummary()
+
+	// Add source file in pkg directory
+	summary.addResult(&FileResult{
+		Path:      "/project/pkg/api.go",
+		Language:  "Go",
+		Package:   "pkg",
+		Lines:     100,
+		CodeLines: 80,
+		Category:  FileCategorySrc,
+	})
+
+	// Add test file in same directory
+	summary.addResult(&FileResult{
+		Path:      "/project/pkg/api_test.go",
+		Language:  "Go",
+		Package:   "pkg",
+		Lines:     50,
+		CodeLines: 40,
+		Category:  FileCategoryTest,
+	})
+
+	// Check directory stats
+	dirStats := summary.ByDirectory["/project/pkg"]
+	if dirStats == nil {
+		t.Fatal("expected /project/pkg directory stats")
+	}
+
+	// Total for directory
+	if dirStats.Files != 2 {
+		t.Errorf("expected dir Files=2, got %d", dirStats.Files)
+	}
+	if dirStats.Code != 120 { // 80 + 40
+		t.Errorf("expected dir Code=120, got %d", dirStats.Code)
+	}
+
+	// Src sub-breakdown
+	if dirStats.SrcFiles != 1 {
+		t.Errorf("expected dir SrcFiles=1, got %d", dirStats.SrcFiles)
+	}
+	if dirStats.SrcCode != 80 {
+		t.Errorf("expected dir SrcCode=80, got %d", dirStats.SrcCode)
+	}
+
+	// Test sub-breakdown
+	if dirStats.TestFiles != 1 {
+		t.Errorf("expected dir TestFiles=1, got %d", dirStats.TestFiles)
+	}
+	if dirStats.TestCode != 40 {
+		t.Errorf("expected dir TestCode=40, got %d", dirStats.TestCode)
+	}
+}
+
+// TestPackageStatsSubBreakdown tests that package stats track src/test/other breakdown
+func TestPackageStatsSubBreakdown(t *testing.T) {
+	summary := newSummary()
+
+	// Add source file
+	summary.addResult(&FileResult{
+		Path:      "/project/pkg/api.go",
+		Language:  "Go",
+		Package:   "api",
+		Lines:     100,
+		CodeLines: 80,
+		Category:  FileCategorySrc,
+	})
+
+	// Add test file in same package
+	summary.addResult(&FileResult{
+		Path:      "/project/pkg/api_test.go",
+		Language:  "Go",
+		Package:   "api",
+		Lines:     50,
+		CodeLines: 40,
+		Category:  FileCategoryTest,
+	})
+
+	// Check package stats
+	pkgStats := summary.ByPackage["api"]
+	if pkgStats == nil {
+		t.Fatal("expected api package stats")
+	}
+
+	// Total for package
+	if pkgStats.Files != 2 {
+		t.Errorf("expected pkg Files=2, got %d", pkgStats.Files)
+	}
+	if pkgStats.Code != 120 { // 80 + 40
+		t.Errorf("expected pkg Code=120, got %d", pkgStats.Code)
+	}
+
+	// Src sub-breakdown
+	if pkgStats.SrcFiles != 1 {
+		t.Errorf("expected pkg SrcFiles=1, got %d", pkgStats.SrcFiles)
+	}
+	if pkgStats.SrcCode != 80 {
+		t.Errorf("expected pkg SrcCode=80, got %d", pkgStats.SrcCode)
+	}
+
+	// Test sub-breakdown
+	if pkgStats.TestFiles != 1 {
+		t.Errorf("expected pkg TestFiles=1, got %d", pkgStats.TestFiles)
+	}
+	if pkgStats.TestCode != 40 {
+		t.Errorf("expected pkg TestCode=40, got %d", pkgStats.TestCode)
+	}
+}
+
+// TestFileCategoryConstants tests that FileCategory constants have expected values
+func TestFileCategoryConstants(t *testing.T) {
+	// Verify the constants are defined with expected values
+	if FileCategorySrc != 0 {
+		t.Errorf("expected FileCategorySrc=0, got %d", FileCategorySrc)
+	}
+	if FileCategoryTest != 1 {
+		t.Errorf("expected FileCategoryTest=1, got %d", FileCategoryTest)
+	}
+	if FileCategoryOther != 2 {
+		t.Errorf("expected FileCategoryOther=2, got %d", FileCategoryOther)
+	}
+}

@@ -14,77 +14,193 @@ func createTestSummary() *Summary {
 		TotalCode:     5511,
 		TotalBlanks:   555,
 		TotalComments: 607,
+		// Source file stats (non-test, non-other)
+		SrcFiles:    60,
+		SrcLines:    4500,
+		SrcCode:     3700,
+		SrcBlanks:   400,
+		SrcComments: 400,
+		// Test file stats
+		TestFiles:    30,
+		TestLines:    2173,
+		TestCode:     1811,
+		TestBlanks:   155,
+		TestComments: 207,
+		// Other file stats (none in default test)
+		OtherFiles:    0,
+		OtherLines:    0,
+		OtherCode:     0,
+		OtherBlanks:   0,
+		OtherComments: 0,
 		ByLanguage: map[string]*LanguageStats{
 			"Go": {
-				Language: "Go",
-				Files:    42,
-				Lines:    3521,
-				Code:     2890,
-				Blanks:   319,
-				Comments: 312,
+				Language:     "Go",
+				Files:        42,
+				Lines:        3521,
+				Code:         2890,
+				Blanks:       319,
+				Comments:     312,
+				SrcFiles:     30,
+				SrcLines:     2500,
+				SrcCode:      2000,
+				SrcBlanks:    250,
+				SrcComments:  250,
+				TestFiles:    12,
+				TestLines:    1021,
+				TestCode:     890,
+				TestBlanks:   69,
+				TestComments: 62,
 			},
 			"TypeScript": {
-				Language: "TypeScript",
-				Files:    28,
-				Lines:    2104,
-				Code:     1756,
-				Blanks:   150,
-				Comments: 198,
+				Language:     "TypeScript",
+				Files:        28,
+				Lines:        2104,
+				Code:         1756,
+				Blanks:       150,
+				Comments:     198,
+				SrcFiles:     18,
+				SrcLines:     1400,
+				SrcCode:      1200,
+				SrcBlanks:    100,
+				SrcComments:  100,
+				TestFiles:    10,
+				TestLines:    704,
+				TestCode:     556,
+				TestBlanks:   50,
+				TestComments: 98,
 			},
 			"Python": {
-				Language: "Python",
-				Files:    15,
-				Lines:    892,
-				Code:     723,
-				Blanks:   80,
-				Comments: 89,
+				Language:     "Python",
+				Files:        15,
+				Lines:        892,
+				Code:         723,
+				Blanks:       80,
+				Comments:     89,
+				SrcFiles:     10,
+				SrcLines:     600,
+				SrcCode:      500,
+				SrcBlanks:    50,
+				SrcComments:  50,
+				TestFiles:    5,
+				TestLines:    292,
+				TestCode:     223,
+				TestBlanks:   30,
+				TestComments: 39,
 			},
 		},
 		ByDirectory: map[string]*DirectoryStats{
 			"pkg/api": {
-				Path:     "pkg/api",
-				Files:    18,
-				Lines:    1892,
-				Code:     1580,
-				Blanks:   180,
-				Comments: 132,
+				Path:         "pkg/api",
+				Files:        18,
+				Lines:        1892,
+				Code:         1580,
+				Blanks:       180,
+				Comments:     132,
+				SrcFiles:     12,
+				SrcLines:     1200,
+				SrcCode:      1000,
+				SrcBlanks:    100,
+				SrcComments:  100,
+				TestFiles:    6,
+				TestLines:    692,
+				TestCode:     580,
+				TestBlanks:   80,
+				TestComments: 32,
 			},
 			"pkg/core": {
-				Path:     "pkg/core",
-				Files:    24,
-				Lines:    1629,
-				Code:     1350,
-				Blanks:   150,
-				Comments: 129,
+				Path:         "pkg/core",
+				Files:        24,
+				Lines:        1629,
+				Code:         1350,
+				Blanks:       150,
+				Comments:     129,
+				SrcFiles:     16,
+				SrcLines:     1100,
+				SrcCode:      900,
+				SrcBlanks:    100,
+				SrcComments:  100,
+				TestFiles:    8,
+				TestLines:    529,
+				TestCode:     450,
+				TestBlanks:   50,
+				TestComments: 29,
 			},
 			"cmd": {
-				Path:     "cmd",
-				Files:    12,
-				Lines:    945,
-				Code:     800,
-				Blanks:   90,
-				Comments: 55,
+				Path:         "cmd",
+				Files:        12,
+				Lines:        945,
+				Code:         800,
+				Blanks:       90,
+				Comments:     55,
+				SrcFiles:     8,
+				SrcLines:     600,
+				SrcCode:      500,
+				SrcBlanks:    50,
+				SrcComments:  50,
+				TestFiles:    4,
+				TestLines:    345,
+				TestCode:     300,
+				TestBlanks:   40,
+				TestComments: 5,
 			},
 		},
 		ByPackage: map[string]*PackageStats{
 			"api": {
-				Package:  "api",
-				Files:    18,
-				Lines:    1892,
-				Code:     1580,
-				Blanks:   180,
-				Comments: 132,
+				Package:      "api",
+				Files:        18,
+				Lines:        1892,
+				Code:         1580,
+				Blanks:       180,
+				Comments:     132,
+				SrcFiles:     12,
+				SrcLines:     1200,
+				SrcCode:      1000,
+				SrcBlanks:    100,
+				SrcComments:  100,
+				TestFiles:    6,
+				TestLines:    692,
+				TestCode:     580,
+				TestBlanks:   80,
+				TestComments: 32,
 			},
 			"core": {
-				Package:  "core",
-				Files:    24,
-				Lines:    1629,
-				Code:     1350,
-				Blanks:   150,
-				Comments: 129,
+				Package:      "core",
+				Files:        24,
+				Lines:        1629,
+				Code:         1350,
+				Blanks:       150,
+				Comments:     129,
+				SrcFiles:     16,
+				SrcLines:     1100,
+				SrcCode:      900,
+				SrcBlanks:    100,
+				SrcComments:  100,
+				TestFiles:    8,
+				TestLines:    529,
+				TestCode:     450,
+				TestBlanks:   50,
+				TestComments: 29,
 			},
 		},
 	}
+}
+
+// createTestSummaryWithOther creates a sample Summary that includes "other" files
+func createTestSummaryWithOther() *Summary {
+	summary := createTestSummary()
+	// Add "other" files (config, docs)
+	summary.OtherFiles = 5
+	summary.OtherLines = 200
+	summary.OtherCode = 150
+	summary.OtherBlanks = 30
+	summary.OtherComments = 20
+	// Update totals
+	summary.TotalFiles += 5
+	summary.TotalLines += 200
+	summary.TotalCode += 150
+	summary.TotalBlanks += 30
+	summary.TotalComments += 20
+	return summary
 }
 
 func TestFormatNumber(t *testing.T) {
@@ -331,52 +447,6 @@ func TestJSONOutputStructure(t *testing.T) {
 	}
 }
 
-func TestJSONOutputAlwaysIncludesFullData(t *testing.T) {
-	summary := createTestSummary()
-
-	// Test with different flag combinations - JSON should always include all data
-	testCases := []struct {
-		name       string
-		byLanguage bool
-		byDir      bool
-		byPackage  bool
-	}{
-		{"no flags", false, false, false},
-		{"only language", true, false, false},
-		{"only dir", false, true, false},
-		{"only package", false, false, true},
-		{"all flags", true, true, true},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			config := &OutputConfig{
-				Format:     FormatJSON,
-				ByLanguage: tc.byLanguage,
-				ByDir:      tc.byDir,
-				ByPackage:  tc.byPackage,
-			}
-
-			output := FormatOutput(summary, config)
-
-			var result jsonOutput
-			if err := json.Unmarshal([]byte(output), &result); err != nil {
-				t.Fatalf("invalid JSON: %v", err)
-			}
-
-			// All data should be present regardless of flags
-			if len(result.ByLanguage) != 3 {
-				t.Errorf("expected 3 languages regardless of flags, got %d", len(result.ByLanguage))
-			}
-			if len(result.ByDirectory) != 3 {
-				t.Errorf("expected 3 directories regardless of flags, got %d", len(result.ByDirectory))
-			}
-			if len(result.ByPackage) != 2 {
-				t.Errorf("expected 2 packages regardless of flags, got %d", len(result.ByPackage))
-			}
-		})
-	}
-}
 
 func TestJSONOutputSorted(t *testing.T) {
 	summary := createTestSummary()
@@ -523,7 +593,7 @@ func TestRawOutputWithPackageBreakdown(t *testing.T) {
 	}
 }
 
-func TestBreakdownFlagsAffectPrettyAndRawNotJSON(t *testing.T) {
+func TestBreakdownFlagsAffectPrettyAndRaw(t *testing.T) {
 	summary := createTestSummary()
 
 	// With no flags set
@@ -560,16 +630,63 @@ func TestBreakdownFlagsAffectPrettyAndRawNotJSON(t *testing.T) {
 	if rawNoFlags == rawAllFlags {
 		t.Error("expected raw output to differ based on breakdown flags")
 	}
+}
 
-	// JSON output should NOT differ
-	configNoFlags.Format = FormatJSON
-	configAllFlags.Format = FormatJSON
+// TestJSONOutputIncludesSrcTestRegardlessOfBreakdownFlags tests that JSON output
+// always includes src/test breakdown (unless --combined is set), regardless of
+// --by-language, --by-dir, --by-package flags
+func TestJSONOutputIncludesSrcTestRegardlessOfBreakdownFlags(t *testing.T) {
+	summary := createTestSummary()
 
-	jsonNoFlags := FormatOutput(summary, configNoFlags)
-	jsonAllFlags := FormatOutput(summary, configAllFlags)
+	testCases := []struct {
+		name       string
+		byLanguage bool
+		byDir      bool
+		byPackage  bool
+	}{
+		{"no flags", false, false, false},
+		{"only language", true, false, false},
+		{"only dir", false, true, false},
+		{"only package", false, false, true},
+		{"all flags", true, true, true},
+	}
 
-	if jsonNoFlags != jsonAllFlags {
-		t.Error("expected JSON output to be the same regardless of breakdown flags")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			config := &OutputConfig{
+				Format:     FormatJSON,
+				ByLanguage: tc.byLanguage,
+				ByDir:      tc.byDir,
+				ByPackage:  tc.byPackage,
+				Combined:   false, // Default: show src/test
+			}
+
+			output := FormatOutput(summary, config)
+
+			var result jsonOutput
+			if err := json.Unmarshal([]byte(output), &result); err != nil {
+				t.Fatalf("invalid JSON: %v", err)
+			}
+
+			// src/test should always be present when not combined
+			if result.Src == nil {
+				t.Error("expected 'src' in JSON output regardless of breakdown flags")
+			}
+			if result.Test == nil {
+				t.Error("expected 'test' in JSON output regardless of breakdown flags")
+			}
+
+			// All data should be present regardless of flags
+			if len(result.ByLanguage) != 3 {
+				t.Errorf("expected 3 languages regardless of flags, got %d", len(result.ByLanguage))
+			}
+			if len(result.ByDirectory) != 3 {
+				t.Errorf("expected 3 directories regardless of flags, got %d", len(result.ByDirectory))
+			}
+			if len(result.ByPackage) != 2 {
+				t.Errorf("expected 2 packages regardless of flags, got %d", len(result.ByPackage))
+			}
+		})
 	}
 }
 
@@ -893,5 +1010,454 @@ func TestZeroTotalCodePercentage(t *testing.T) {
 	// Should handle 0/0 case gracefully (showing 0.0%)
 	if !strings.Contains(output, "0.0%") {
 		t.Errorf("expected '0.0%%' when total code is 0, got: %s", output)
+	}
+}
+
+// TestElbowSeparatorsInSummaryTable tests that elbow separators appear in default output
+func TestElbowSeparatorsInSummaryTable(t *testing.T) {
+	summary := createTestSummary()
+	config := &OutputConfig{
+		Format:  FormatPretty,
+		NoColor: false, // Use Unicode elbows
+	}
+
+	output := FormatOutput(summary, config)
+
+	// Should have Unicode elbow characters for src/test sub-rows
+	if !strings.Contains(output, ElbowMiddle) && !strings.Contains(output, ElbowLast) {
+		t.Errorf("expected elbow separators in output, got: %s", output)
+	}
+
+	// Should have "src" and "test" sub-rows
+	if !strings.Contains(output, "src") {
+		t.Error("expected 'src' sub-row in output")
+	}
+	if !strings.Contains(output, "test") {
+		t.Error("expected 'test' sub-row in output")
+	}
+}
+
+// TestElbowSeparatorsASCII tests ASCII elbow separators in no-color mode
+func TestElbowSeparatorsASCII(t *testing.T) {
+	summary := createTestSummary()
+	config := &OutputConfig{
+		Format:  FormatPretty,
+		NoColor: true, // Use ASCII elbows
+	}
+
+	output := FormatOutput(summary, config)
+
+	// Should have ASCII elbow characters for src/test sub-rows
+	if !strings.Contains(output, ElbowMiddleASCII) && !strings.Contains(output, ElbowLastASCII) {
+		t.Errorf("expected ASCII elbow separators in no-color output, got: %s", output)
+	}
+}
+
+// TestCombinedVsSeparatedOutput tests --combined flag behavior
+func TestCombinedVsSeparatedOutput(t *testing.T) {
+	summary := createTestSummary()
+
+	t.Run("separated output (default)", func(t *testing.T) {
+		config := &OutputConfig{
+			Format:   FormatPretty,
+			Combined: false, // Default: show src/test breakdown
+			NoColor:  true,
+		}
+
+		output := FormatOutput(summary, config)
+
+		// Should show Total row and sub-rows
+		if !strings.Contains(output, "Total") {
+			t.Error("expected 'Total' row in separated output")
+		}
+		if !strings.Contains(output, "src") {
+			t.Error("expected 'src' sub-row in separated output")
+		}
+		if !strings.Contains(output, "test") {
+			t.Error("expected 'test' sub-row in separated output")
+		}
+	})
+
+	t.Run("combined output", func(t *testing.T) {
+		config := &OutputConfig{
+			Format:   FormatPretty,
+			Combined: true, // Hide src/test breakdown
+			NoColor:  true,
+		}
+
+		output := FormatOutput(summary, config)
+
+		// Should NOT have elbow separators or breakdown labels
+		if strings.Contains(output, ElbowMiddleASCII) || strings.Contains(output, ElbowLastASCII) {
+			t.Error("did not expect elbow separators in combined output")
+		}
+		if strings.Contains(output, "+- src") || strings.Contains(output, "`- test") {
+			t.Error("did not expect src/test breakdown labels in combined output")
+		}
+	})
+}
+
+// TestShowAllWithOtherFiles tests --all flag includes "other" category
+func TestShowAllWithOtherFiles(t *testing.T) {
+	summary := createTestSummaryWithOther()
+
+	t.Run("pretty output with other files", func(t *testing.T) {
+		config := &OutputConfig{
+			Format:  FormatPretty,
+			ShowAll: true,
+			NoColor: true,
+		}
+
+		output := FormatOutput(summary, config)
+
+		// Should show "other" sub-row
+		if !strings.Contains(output, "other") {
+			t.Errorf("expected 'other' sub-row with --all flag, got: %s", output)
+		}
+	})
+
+	t.Run("JSON output with other files", func(t *testing.T) {
+		config := &OutputConfig{
+			Format:  FormatJSON,
+			ShowAll: true,
+		}
+
+		output := FormatOutput(summary, config)
+
+		// Should include "other" in JSON
+		if !strings.Contains(output, `"other"`) {
+			t.Errorf("expected 'other' field in JSON with --all flag, got: %s", output)
+		}
+	})
+
+	t.Run("raw output with other files", func(t *testing.T) {
+		config := &OutputConfig{
+			Format:  FormatRaw,
+			ShowAll: true,
+		}
+
+		output := FormatOutput(summary, config)
+
+		// Should include "Other Files:" in raw output
+		if !strings.Contains(output, "Other Files:") {
+			t.Errorf("expected 'Other Files:' in raw output with --all flag, got: %s", output)
+		}
+	})
+}
+
+// TestTotalsMathSrcTestOther verifies that src + test + other = total
+func TestTotalsMathSrcTestOther(t *testing.T) {
+	summary := createTestSummaryWithOther()
+
+	// Verify the math: src + test + other should equal total
+	totalFiles := summary.SrcFiles + summary.TestFiles + summary.OtherFiles
+	if totalFiles != summary.TotalFiles {
+		t.Errorf("SrcFiles(%d) + TestFiles(%d) + OtherFiles(%d) = %d, want TotalFiles=%d",
+			summary.SrcFiles, summary.TestFiles, summary.OtherFiles, totalFiles, summary.TotalFiles)
+	}
+
+	totalCode := summary.SrcCode + summary.TestCode + summary.OtherCode
+	if totalCode != summary.TotalCode {
+		t.Errorf("SrcCode(%d) + TestCode(%d) + OtherCode(%d) = %d, want TotalCode=%d",
+			summary.SrcCode, summary.TestCode, summary.OtherCode, totalCode, summary.TotalCode)
+	}
+
+	totalLines := summary.SrcLines + summary.TestLines + summary.OtherLines
+	if totalLines != summary.TotalLines {
+		t.Errorf("SrcLines(%d) + TestLines(%d) + OtherLines(%d) = %d, want TotalLines=%d",
+			summary.SrcLines, summary.TestLines, summary.OtherLines, totalLines, summary.TotalLines)
+	}
+
+	totalBlanks := summary.SrcBlanks + summary.TestBlanks + summary.OtherBlanks
+	if totalBlanks != summary.TotalBlanks {
+		t.Errorf("SrcBlanks(%d) + TestBlanks(%d) + OtherBlanks(%d) = %d, want TotalBlanks=%d",
+			summary.SrcBlanks, summary.TestBlanks, summary.OtherBlanks, totalBlanks, summary.TotalBlanks)
+	}
+
+	totalComments := summary.SrcComments + summary.TestComments + summary.OtherComments
+	if totalComments != summary.TotalComments {
+		t.Errorf("SrcComments(%d) + TestComments(%d) + OtherComments(%d) = %d, want TotalComments=%d",
+			summary.SrcComments, summary.TestComments, summary.OtherComments, totalComments, summary.TotalComments)
+	}
+}
+
+// TestJSONOutputStructureWithSrcTestBreakdown tests JSON includes src/test by default
+func TestJSONOutputStructureWithSrcTestBreakdown(t *testing.T) {
+	summary := createTestSummary()
+	config := &OutputConfig{
+		Format:   FormatJSON,
+		Combined: false, // Default
+	}
+
+	output := FormatOutput(summary, config)
+
+	// Verify it's valid JSON
+	var result jsonOutput
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("invalid JSON output: %v", err)
+	}
+
+	// Should have src and test fields at top level
+	if result.Src == nil {
+		t.Error("expected 'src' field in JSON output by default")
+	}
+	if result.Test == nil {
+		t.Error("expected 'test' field in JSON output by default")
+	}
+
+	// Verify src stats
+	if result.Src != nil {
+		if result.Src.Files != summary.SrcFiles {
+			t.Errorf("expected src.files = %d, got %d", summary.SrcFiles, result.Src.Files)
+		}
+		if result.Src.Code != summary.SrcCode {
+			t.Errorf("expected src.code = %d, got %d", summary.SrcCode, result.Src.Code)
+		}
+	}
+
+	// Verify test stats
+	if result.Test != nil {
+		if result.Test.Files != summary.TestFiles {
+			t.Errorf("expected test.files = %d, got %d", summary.TestFiles, result.Test.Files)
+		}
+		if result.Test.Code != summary.TestCode {
+			t.Errorf("expected test.code = %d, got %d", summary.TestCode, result.Test.Code)
+		}
+	}
+
+	// "other" should be nil when no other files
+	if result.Other != nil {
+		t.Error("did not expect 'other' field when no other files")
+	}
+}
+
+// TestJSONOutputCombinedOmitsSrcTest tests JSON with --combined omits src/test
+func TestJSONOutputCombinedOmitsSrcTest(t *testing.T) {
+	summary := createTestSummary()
+	config := &OutputConfig{
+		Format:   FormatJSON,
+		Combined: true,
+	}
+
+	output := FormatOutput(summary, config)
+
+	// Verify it's valid JSON
+	var result jsonOutput
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("invalid JSON output: %v", err)
+	}
+
+	// Should NOT have src and test fields
+	if result.Src != nil {
+		t.Error("did not expect 'src' field in JSON output with --combined")
+	}
+	if result.Test != nil {
+		t.Error("did not expect 'test' field in JSON output with --combined")
+	}
+
+	// Total should still be present
+	if result.Total.Files != summary.TotalFiles {
+		t.Errorf("expected total.files = %d, got %d", summary.TotalFiles, result.Total.Files)
+	}
+}
+
+// TestJSONByLanguageIncludesSrcTestBreakdown tests language breakdown includes sub-stats
+func TestJSONByLanguageIncludesSrcTestBreakdown(t *testing.T) {
+	summary := createTestSummary()
+	config := &OutputConfig{
+		Format:   FormatJSON,
+		Combined: false,
+	}
+
+	output := FormatOutput(summary, config)
+
+	var result jsonOutput
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("invalid JSON output: %v", err)
+	}
+
+	// Find Go language stats
+	var goLang *jsonLanguageStats
+	for i := range result.ByLanguage {
+		if result.ByLanguage[i].Language == "Go" {
+			goLang = &result.ByLanguage[i]
+			break
+		}
+	}
+
+	if goLang == nil {
+		t.Fatal("expected Go language in byLanguage")
+	}
+
+	// Go should have src and test sub-stats
+	if goLang.Src == nil {
+		t.Error("expected 'src' sub-stats in Go language entry")
+	}
+	if goLang.Test == nil {
+		t.Error("expected 'test' sub-stats in Go language entry")
+	}
+
+	// Verify Go src stats match
+	goStats := summary.ByLanguage["Go"]
+	if goLang.Src != nil && goLang.Src.Files != goStats.SrcFiles {
+		t.Errorf("expected Go src.files = %d, got %d", goStats.SrcFiles, goLang.Src.Files)
+	}
+}
+
+// TestRawOutputWithSrcTestBreakdown tests raw output shows src/test by default
+func TestRawOutputWithSrcTestBreakdown(t *testing.T) {
+	summary := createTestSummary()
+	config := &OutputConfig{
+		Format:   FormatRaw,
+		Combined: false, // Default
+	}
+
+	output := FormatOutput(summary, config)
+
+	// Should show Source Files and Test Files
+	if !strings.Contains(output, "Source Files:") {
+		t.Errorf("expected 'Source Files:' in raw output, got: %s", output)
+	}
+	if !strings.Contains(output, "Source Code:") {
+		t.Errorf("expected 'Source Code:' in raw output, got: %s", output)
+	}
+	if !strings.Contains(output, "Test Files:") {
+		t.Errorf("expected 'Test Files:' in raw output, got: %s", output)
+	}
+	if !strings.Contains(output, "Test Code:") {
+		t.Errorf("expected 'Test Code:' in raw output, got: %s", output)
+	}
+}
+
+// TestRawOutputCombinedOmitsSrcTest tests raw output with --combined
+func TestRawOutputCombinedOmitsSrcTest(t *testing.T) {
+	summary := createTestSummary()
+	config := &OutputConfig{
+		Format:   FormatRaw,
+		Combined: true,
+	}
+
+	output := FormatOutput(summary, config)
+
+	// Should NOT show Source Files or Test Files breakdown
+	if strings.Contains(output, "Source Files:") {
+		t.Errorf("did not expect 'Source Files:' in combined raw output, got: %s", output)
+	}
+	if strings.Contains(output, "Test Files:") {
+		t.Errorf("did not expect 'Test Files:' in combined raw output, got: %s", output)
+	}
+
+	// But should still show total Files
+	if !strings.Contains(output, "Files:") {
+		t.Errorf("expected 'Files:' in combined raw output, got: %s", output)
+	}
+}
+
+// TestLanguageBreakdownTableShowsSubRows tests language table has src/test sub-rows
+func TestLanguageBreakdownTableShowsSubRows(t *testing.T) {
+	summary := createTestSummary()
+	config := &OutputConfig{
+		Format:     FormatPretty,
+		ByLanguage: true,
+		Combined:   false,
+		NoColor:    true,
+	}
+
+	output := FormatOutput(summary, config)
+
+	// Should show "By Language" section
+	if !strings.Contains(output, "By Language") {
+		t.Error("expected 'By Language' section")
+	}
+
+	// Should have elbow separators for sub-rows
+	if !strings.Contains(output, ElbowMiddleASCII) || !strings.Contains(output, ElbowLastASCII) {
+		t.Errorf("expected elbow separators in language table, got: %s", output)
+	}
+
+	// Should have "src" and "test" sub-rows
+	if !strings.Contains(output, "src") {
+		t.Error("expected 'src' sub-row in language table")
+	}
+	if !strings.Contains(output, "test") {
+		t.Error("expected 'test' sub-row in language table")
+	}
+}
+
+// TestLanguageBreakdownTableCombined tests language table with --combined
+func TestLanguageBreakdownTableCombined(t *testing.T) {
+	summary := createTestSummary()
+	config := &OutputConfig{
+		Format:     FormatPretty,
+		ByLanguage: true,
+		Combined:   true,
+		NoColor:    true,
+	}
+
+	output := FormatOutput(summary, config)
+
+	// Should show "By Language" section
+	if !strings.Contains(output, "By Language") {
+		t.Error("expected 'By Language' section")
+	}
+
+	// Should NOT have elbow separators
+	if strings.Contains(output, ElbowMiddleASCII) || strings.Contains(output, ElbowLastASCII) {
+		t.Errorf("did not expect elbow separators in combined language table, got: %s", output)
+	}
+}
+
+// TestRawOutputByLanguageSubBreakdown tests raw output language breakdown shows sub-stats
+func TestRawOutputByLanguageSubBreakdown(t *testing.T) {
+	summary := createTestSummary()
+	config := &OutputConfig{
+		Format:     FormatRaw,
+		ByLanguage: true,
+		Combined:   false,
+	}
+
+	output := FormatOutput(summary, config)
+
+	// Should have language with src/test sub-breakdown
+	if !strings.Contains(output, "Go:") {
+		t.Error("expected 'Go:' in language breakdown")
+	}
+	if !strings.Contains(output, "  src:") {
+		t.Errorf("expected '  src:' sub-breakdown in language, got: %s", output)
+	}
+	if !strings.Contains(output, "  test:") {
+		t.Errorf("expected '  test:' sub-breakdown in language, got: %s", output)
+	}
+}
+
+// TestOutputConfigFields tests that OutputConfig has expected fields
+func TestOutputConfigFields(t *testing.T) {
+	config := &OutputConfig{
+		Format:     FormatPretty,
+		ByLanguage: true,
+		ByDir:      true,
+		ByPackage:  true,
+		NoColor:    false,
+		Combined:   false,
+		ShowAll:    false,
+	}
+
+	// Verify fields can be set
+	if config.Combined {
+		t.Error("Combined should be false")
+	}
+	if config.ShowAll {
+		t.Error("ShowAll should be false")
+	}
+
+	// Set new fields
+	config.Combined = true
+	config.ShowAll = true
+
+	if !config.Combined {
+		t.Error("Combined should be true after setting")
+	}
+	if !config.ShowAll {
+		t.Error("ShowAll should be true after setting")
 	}
 }

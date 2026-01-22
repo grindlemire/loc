@@ -521,6 +521,15 @@ func buildCLICommand() *cli.Command {
 				Name:  "no-color",
 				Usage: "Disable colored output",
 			},
+			&cli.BoolFlag{
+				Name:  "combined",
+				Usage: "Combine src/test/other into single totals (disable breakdown)",
+			},
+			&cli.BoolFlag{
+				Name:    "all",
+				Aliases: []string{"a"},
+				Usage:   "Include non-source files (config, markdown, etc.)",
+			},
 		},
 		Action: run,
 	}
@@ -606,5 +615,346 @@ func main() {}
 	// Should have Total row
 	if !strings.Contains(output, "Total") {
 		t.Errorf("expected 'Total' row in no-color output, got: %s", output)
+	}
+}
+
+// TestCLICombinedFlag tests the --combined flag
+func TestCLICombinedFlag(t *testing.T) {
+	testDir := t.TempDir()
+
+	// Create source and test files
+	err := os.WriteFile(filepath.Join(testDir, "main.go"), []byte(`package main
+
+func main() {}
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = os.WriteFile(filepath.Join(testDir, "main_test.go"), []byte(`package main
+
+func TestMain() {}
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("default shows src/test breakdown", func(t *testing.T) {
+		var buf bytes.Buffer
+		cmd := buildCLICommand()
+		cmd.Writer = &buf
+
+		err = cmd.Run(context.Background(), []string{"loc", testDir})
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		output := buf.String()
+
+		// Default output should show src/test sub-rows
+		if !strings.Contains(output, "src") {
+			t.Errorf("expected 'src' sub-row in default output, got: %s", output)
+		}
+		if !strings.Contains(output, "test") {
+			t.Errorf("expected 'test' sub-row in default output, got: %s", output)
+		}
+	})
+
+	t.Run("combined hides src/test breakdown", func(t *testing.T) {
+		var buf bytes.Buffer
+		cmd := buildCLICommand()
+		cmd.Writer = &buf
+
+		err = cmd.Run(context.Background(), []string{"loc", "--combined", testDir})
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		output := buf.String()
+
+		// Combined output should NOT show src/test sub-rows
+		// The output should just have the simple table without breakdown labels
+		if strings.Contains(output, "src") && strings.Contains(output, "test") {
+			// Check it's not a breakdown - just basic stats
+			// In combined mode, we don't see the breakdown prefixes
+			if strings.Contains(output, "+- src") || strings.Contains(output, "\u251C\u2500 src") {
+				t.Errorf("expected no src/test breakdown with --combined flag, got: %s", output)
+			}
+		}
+	})
+}
+
+// TestCLIAllFlag tests the --all flag
+func TestCLIAllFlag(t *testing.T) {
+	testDir := t.TempDir()
+
+	// Create a Go file
+	err := os.WriteFile(filepath.Join(testDir, "main.go"), []byte(`package main
+
+func main() {}
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a markdown file (non-source file)
+	err = os.WriteFile(filepath.Join(testDir, "README.md"), []byte(`# README
+
+This is documentation.
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a JSON config file
+	err = os.WriteFile(filepath.Join(testDir, "config.json"), []byte(`{
+  "key": "value"
+}
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("without all flag", func(t *testing.T) {
+		var buf bytes.Buffer
+		cmd := buildCLICommand()
+		cmd.Writer = &buf
+
+		err = cmd.Run(context.Background(), []string{"loc", "--output", "raw", testDir})
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		output := buf.String()
+
+		// Without --all, should only count source file (1 file)
+		if !strings.Contains(output, "Files: 1") {
+			t.Errorf("expected 'Files: 1' without --all flag, got: %s", output)
+		}
+	})
+
+	t.Run("with all flag", func(t *testing.T) {
+		var buf bytes.Buffer
+		cmd := buildCLICommand()
+		cmd.Writer = &buf
+
+		err = cmd.Run(context.Background(), []string{"loc", "--output", "raw", "--all", testDir})
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		output := buf.String()
+
+		// With --all, should count all files (3 files: main.go, README.md, config.json)
+		if !strings.Contains(output, "Files: 3") {
+			t.Errorf("expected 'Files: 3' with --all flag, got: %s", output)
+		}
+
+		// Should show "other" files in the breakdown
+		if !strings.Contains(output, "Other Files:") {
+			t.Errorf("expected 'Other Files:' in raw output with --all flag, got: %s", output)
+		}
+	})
+
+	t.Run("with all flag short form", func(t *testing.T) {
+		var buf bytes.Buffer
+		cmd := buildCLICommand()
+		cmd.Writer = &buf
+
+		err = cmd.Run(context.Background(), []string{"loc", "--output", "raw", "-a", testDir})
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		output := buf.String()
+
+		// With -a (short form), should count all files
+		if !strings.Contains(output, "Files: 3") {
+			t.Errorf("expected 'Files: 3' with -a flag, got: %s", output)
+		}
+	})
+}
+
+// TestCLIDefaultShowsSrcTestBreakdown tests that default output shows src/test breakdown
+func TestCLIDefaultShowsSrcTestBreakdown(t *testing.T) {
+	testDir := t.TempDir()
+
+	// Create a source file and a test file
+	err := os.WriteFile(filepath.Join(testDir, "main.go"), []byte(`package main
+
+func main() {}
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = os.WriteFile(filepath.Join(testDir, "main_test.go"), []byte(`package main
+
+func TestMain() {}
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	cmd := buildCLICommand()
+	cmd.Writer = &buf
+
+	err = cmd.Run(context.Background(), []string{"loc", testDir})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+
+	// Default output should show Total row with src/test sub-rows
+	if !strings.Contains(output, "Total") {
+		t.Errorf("expected 'Total' row in default output, got: %s", output)
+	}
+
+	// Should have src and test sub-rows (with elbow prefixes)
+	if !strings.Contains(output, "src") {
+		t.Errorf("expected 'src' in default output, got: %s", output)
+	}
+	if !strings.Contains(output, "test") {
+		t.Errorf("expected 'test' in default output, got: %s", output)
+	}
+}
+
+// TestCLIJSONOutputWithSrcTestBreakdown tests JSON output with src/test breakdown
+func TestCLIJSONOutputWithSrcTestBreakdown(t *testing.T) {
+	testDir := t.TempDir()
+
+	// Create a source file and a test file
+	err := os.WriteFile(filepath.Join(testDir, "main.go"), []byte(`package main
+
+func main() {}
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = os.WriteFile(filepath.Join(testDir, "main_test.go"), []byte(`package main
+
+func TestMain() {}
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	cmd := buildCLICommand()
+	cmd.Writer = &buf
+
+	err = cmd.Run(context.Background(), []string{"loc", "--output", "json", testDir})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+
+	// Parse JSON output
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("expected valid JSON, got error: %v", err)
+	}
+
+	// Default JSON should include src and test stats
+	if _, ok := result["src"]; !ok {
+		t.Error("expected 'src' field in JSON output by default")
+	}
+	if _, ok := result["test"]; !ok {
+		t.Error("expected 'test' field in JSON output by default")
+	}
+
+	// Check that src contains the expected structure
+	src, ok := result["src"].(map[string]interface{})
+	if !ok {
+		t.Error("expected 'src' to be an object")
+	} else {
+		if _, ok := src["files"]; !ok {
+			t.Error("expected 'files' field in src object")
+		}
+		if _, ok := src["code"]; !ok {
+			t.Error("expected 'code' field in src object")
+		}
+	}
+}
+
+// TestCLIJSONOutputWithCombinedFlag tests JSON output with --combined flag
+func TestCLIJSONOutputWithCombinedFlag(t *testing.T) {
+	testDir := t.TempDir()
+
+	// Create a source file and a test file
+	err := os.WriteFile(filepath.Join(testDir, "main.go"), []byte(`package main
+
+func main() {}
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = os.WriteFile(filepath.Join(testDir, "main_test.go"), []byte(`package main
+
+func TestMain() {}
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	cmd := buildCLICommand()
+	cmd.Writer = &buf
+
+	err = cmd.Run(context.Background(), []string{"loc", "--output", "json", "--combined", testDir})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+
+	// Parse JSON output
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("expected valid JSON, got error: %v", err)
+	}
+
+	// With --combined, JSON should NOT include src and test stats
+	if _, ok := result["src"]; ok {
+		t.Error("did not expect 'src' field in JSON output with --combined")
+	}
+	if _, ok := result["test"]; ok {
+		t.Error("did not expect 'test' field in JSON output with --combined")
+	}
+
+	// But should still have total
+	if _, ok := result["total"]; !ok {
+		t.Error("expected 'total' field in JSON output")
+	}
+}
+
+// TestCLIHelpShowsNewFlags tests that help output shows --combined and --all flags
+func TestCLIHelpShowsNewFlags(t *testing.T) {
+	var buf bytes.Buffer
+
+	cmd := buildCLICommand()
+	cmd.Writer = &buf
+
+	err := cmd.Run(context.Background(), []string{"loc", "--help"})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+
+	// Check that new flags are present in help
+	if !strings.Contains(output, "--combined") {
+		t.Errorf("expected --combined flag in help output, got: %s", output)
+	}
+	if !strings.Contains(output, "--all") {
+		t.Errorf("expected --all flag in help output, got: %s", output)
+	}
+	if !strings.Contains(output, "-a") {
+		t.Errorf("expected -a alias in help output, got: %s", output)
 	}
 }
