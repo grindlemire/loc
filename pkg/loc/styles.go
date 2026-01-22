@@ -23,6 +23,23 @@ const (
 	// Additional accent colors for variety
 	SuccessColor = lipgloss.Color("#22C55E") // Vibrant green
 	WarningColor = lipgloss.Color("#F59E0B") // Vibrant amber
+
+	// Sub-row colors
+	SubRowDim = lipgloss.Color("#64748B") // Dimmer color for sub-row elements
+)
+
+// Tree-style elbow separator constants for sub-row display.
+// These are used to show src/test/other breakdowns under language rows.
+const (
+	// ElbowMiddle is used for non-last items in the sub-row list
+	ElbowMiddle = "\u251C\u2500 " // "├─ "
+
+	// ElbowLast is used for the last item in the sub-row list
+	ElbowLast = "\u2514\u2500 " // "└─ "
+
+	// ASCII fallback versions for when colors/unicode are disabled
+	ElbowMiddleASCII = "+- "
+	ElbowLastASCII   = "`- "
 )
 
 // Styles holds all the lipgloss styles used for rendering output.
@@ -57,6 +74,14 @@ type Styles struct {
 
 	// RowOdd style for odd rows
 	RowOdd lipgloss.Style
+
+	// SubRowPrefix style for tree-style elbow characters (├─, └─)
+	// Should be dimmer than main row text
+	SubRowPrefix lipgloss.Style
+
+	// SubRowLabel style for sub-row labels ("src", "test", "other")
+	// Slightly indented appearance with dim styling
+	SubRowLabel lipgloss.Style
 }
 
 // NewStyles creates a new Styles instance with the given renderer.
@@ -101,6 +126,13 @@ func NewStyles(r *lipgloss.Renderer) *Styles {
 			Background(RowAltBg),
 
 		RowOdd: r.NewStyle(),
+
+		SubRowPrefix: r.NewStyle().
+			Foreground(SubRowDim),
+
+		SubRowLabel: r.NewStyle().
+			Foreground(SubRowDim).
+			PaddingLeft(1),
 	}
 }
 
