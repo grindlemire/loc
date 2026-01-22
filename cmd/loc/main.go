@@ -71,6 +71,15 @@ func main() {
 				Name:  "no-color",
 				Usage: "Disable colored output",
 			},
+			&cli.BoolFlag{
+				Name:  "combined",
+				Usage: "Combine src/test/other into single totals (disable breakdown)",
+			},
+			&cli.BoolFlag{
+				Name:    "all",
+				Aliases: []string{"a"},
+				Usage:   "Include non-source files (config, markdown, etc.)",
+			},
 		},
 		Action: run,
 	}
@@ -99,6 +108,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		NoGitignore:  cmd.Bool("no-gitignore"),
 		Include:      cmd.StringSlice("include"),
 		Exclude:      cmd.StringSlice("exclude"),
+		Combined:     cmd.Bool("combined"),
+		All:          cmd.Bool("all"),
 	}
 
 	// Validate output format
@@ -144,6 +155,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		ByDir:      config.ByDirectory,
 		ByPackage:  config.ByPackage,
 		NoColor:    noColor,
+		Combined:   config.Combined,
 	}
 
 	output := loc.FormatOutput(summary, outputConfig)

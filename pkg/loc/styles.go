@@ -6,19 +6,23 @@ import (
 )
 
 // Color palette constants for the LOC output styling.
-// These colors are inspired by the Tokyo Night theme for a modern, readable appearance.
+// These colors are vibrant and modern for clear visibility on terminal.
 const (
-	// Primary accent - subtle purple
-	AccentColor = lipgloss.Color("#9D7CD8")
+	// Primary accent - vibrant cyan
+	AccentColor = lipgloss.Color("#00D9FF")
 
 	// Text colors
-	HeaderText = lipgloss.Color("#C0CAF5") // Light for headers
-	DimText    = lipgloss.Color("#565F89") // Muted for secondary info
-	NormalText = lipgloss.Color("#A9B1D6") // Standard text
+	HeaderText = lipgloss.Color("#F8FAFC") // Bright white for headers
+	DimText    = lipgloss.Color("#94A3B8") // Slate for secondary info
+	NormalText = lipgloss.Color("#E2E8F0") // Light gray for standard text
 
 	// Table colors
-	BorderColor = lipgloss.Color("#414868") // Subtle border
-	RowAltBg    = lipgloss.Color("#1A1B26") // Alternating row background (optional)
+	BorderColor = lipgloss.Color("#6366F1") // Vibrant indigo border
+	RowAltBg    = lipgloss.Color("#1E1B4B") // Deep indigo background (optional)
+
+	// Additional accent colors for variety
+	SuccessColor = lipgloss.Color("#22C55E") // Vibrant green
+	WarningColor = lipgloss.Color("#F59E0B") // Vibrant amber
 )
 
 // Styles holds all the lipgloss styles used for rendering output.

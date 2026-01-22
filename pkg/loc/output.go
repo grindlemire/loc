@@ -26,6 +26,7 @@ type OutputConfig struct {
 	ByDir      bool
 	ByPackage  bool
 	NoColor    bool
+	Combined   bool // When true, don't show src/test/other breakdown
 }
 
 // FormatOutput formats a Summary according to the given OutputConfig
@@ -66,18 +67,26 @@ func formatNumber(n int) string {
 // formatPretty formats the summary as pretty terminal output with styled tables
 func formatPretty(summary *Summary, config *OutputConfig) string {
 	// Check if any breakdown flags are set
-	hasBreakdown := config.ByLanguage || config.ByDir || config.ByPackage
+	hasBreakdown := config.ByLanguage || config.ByDir || config.ByPackage || !config.Combined
 
 	// If no breakdown flags, show the summary table
 	if !hasBreakdown {
 		return formatSummaryTable(summary, config)
 	}
 
-	// Otherwise, show breakdown tables (these will be updated in Phase 3)
+	// Otherwise, show breakdown tables
 	var sb strings.Builder
+
+	// Show test breakdown if not combined (show first as it's a high-level split)
+	if !config.Combined {
+		sb.WriteString(formatTestTable(summary, config))
+	}
 
 	// Show breakdowns if requested
 	if config.ByLanguage && len(summary.ByLanguage) > 0 {
+		if sb.Len() > 0 {
+			sb.WriteString("\n")
+		}
 		sb.WriteString(formatLanguageTable(summary, config))
 	}
 
@@ -129,6 +138,83 @@ func formatSummaryTable(summary *Summary, config *OutputConfig) string {
 	})
 
 	return t.Render() + "\n"
+}
+
+// formatTestTable creates a pretty table for test vs non-test breakdown using Charmbracelet lipgloss/table
+func formatTestTable(summary *Summary, config *OutputConfig) string {
+	// Get appropriate styles based on NoColor setting
+	var styles *Styles
+	if config.NoColor {
+		styles = NoColorStyles()
+	} else {
+		styles = DefaultStyles()
+	}
+
+	// Calculate percentages
+	totalCode := summary.TotalCode
+	var srcPct, testPct float64
+	if totalCode > 0 {
+		srcPct = float64(summary.SrcCode) / float64(totalCode) * 100
+		testPct = float64(summary.TestCode) / float64(totalCode) * 100
+	}
+
+	// Build rows
+	rows := [][]string{
+		{
+			"Source",
+			formatNumber(summary.SrcFiles),
+			formatNumber(summary.SrcCode),
+			formatNumber(summary.SrcComments),
+			fmt.Sprintf("%.1f%%", srcPct),
+		},
+		{
+			"Tests",
+			formatNumber(summary.TestFiles),
+			formatNumber(summary.TestCode),
+			formatNumber(summary.TestComments),
+			fmt.Sprintf("%.1f%%", testPct),
+		},
+		{
+			"Total",
+			formatNumber(summary.TotalFiles),
+			formatNumber(summary.TotalCode),
+			formatNumber(summary.TotalComments),
+			"100.0%",
+		},
+	}
+
+	// Create the table with rounded borders
+	t := table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(styles.Border).
+		Headers("Type", "Files", "Code", "Comments", "%")
+
+	// Add all rows
+	for _, row := range rows {
+		t.Row(row...)
+	}
+
+	// Style the table: header centered, first column left-aligned, rest right-aligned
+	t.StyleFunc(func(row, col int) lipgloss.Style {
+		if row == table.HeaderRow {
+			return styles.Label.Padding(0, 1).Align(lipgloss.Center)
+		}
+		// First column (name) left-aligned
+		if col == 0 {
+			// Use TotalLabel style for the totals row
+			if row == len(rows)-1 {
+				return styles.TotalLabel.Padding(0, 1).Align(lipgloss.Left)
+			}
+			return styles.Number.Padding(0, 1).Align(lipgloss.Left)
+		}
+		// Numeric columns right-aligned
+		if row == len(rows)-1 {
+			return styles.TotalNumber.Padding(0, 1).Align(lipgloss.Right)
+		}
+		return styles.Number.Padding(0, 1).Align(lipgloss.Right)
+	})
+
+	return styles.SectionTitle.Render("Source vs Tests") + "\n" + t.Render() + "\n"
 }
 
 // formatLanguageTable creates a pretty table for language breakdown using Charmbracelet lipgloss/table
@@ -398,12 +484,22 @@ func formatPackageTable(summary *Summary, config *OutputConfig) string {
 // jsonOutput represents the JSON output structure
 type jsonOutput struct {
 	Total       jsonTotal            `json:"total"`
+	Source      *jsonTestStats       `json:"source,omitempty"`
+	Tests       *jsonTestStats       `json:"tests,omitempty"`
 	ByLanguage  []jsonLanguageStats  `json:"byLanguage"`
 	ByDirectory []jsonDirectoryStats `json:"byDirectory"`
 	ByPackage   []jsonPackageStats   `json:"byPackage"`
 }
 
 type jsonTotal struct {
+	Files    int `json:"files"`
+	Lines    int `json:"lines"`
+	Code     int `json:"code"`
+	Blanks   int `json:"blanks"`
+	Comments int `json:"comments"`
+}
+
+type jsonTestStats struct {
 	Files    int `json:"files"`
 	Lines    int `json:"lines"`
 	Code     int `json:"code"`
@@ -447,6 +543,20 @@ func formatJSON(summary *Summary) string {
 			Code:     summary.TotalCode,
 			Blanks:   summary.TotalBlanks,
 			Comments: summary.TotalComments,
+		},
+		Source: &jsonTestStats{
+			Files:    summary.SrcFiles,
+			Lines:    summary.SrcLines,
+			Code:     summary.SrcCode,
+			Blanks:   summary.SrcBlanks,
+			Comments: summary.SrcComments,
+		},
+		Tests: &jsonTestStats{
+			Files:    summary.TestFiles,
+			Lines:    summary.TestLines,
+			Code:     summary.TestCode,
+			Blanks:   summary.TestBlanks,
+			Comments: summary.TestComments,
 		},
 		ByLanguage:  make([]jsonLanguageStats, 0, len(summary.ByLanguage)),
 		ByDirectory: make([]jsonDirectoryStats, 0, len(summary.ByDirectory)),
@@ -521,6 +631,15 @@ func formatRaw(summary *Summary, config *OutputConfig) string {
 	sb.WriteString(fmt.Sprintf("Code: %d\n", summary.TotalCode))
 	sb.WriteString(fmt.Sprintf("Blanks: %d\n", summary.TotalBlanks))
 	sb.WriteString(fmt.Sprintf("Comments: %d\n", summary.TotalComments))
+
+	// Add test breakdown if not combined
+	if !config.Combined {
+		sb.WriteString("\n")
+		sb.WriteString(fmt.Sprintf("Source Files: %d\n", summary.SrcFiles))
+		sb.WriteString(fmt.Sprintf("Source Code: %d\n", summary.SrcCode))
+		sb.WriteString(fmt.Sprintf("Test Files: %d\n", summary.TestFiles))
+		sb.WriteString(fmt.Sprintf("Test Code: %d\n", summary.TestCode))
+	}
 
 	// Add language breakdown if requested
 	if config.ByLanguage && len(summary.ByLanguage) > 0 {

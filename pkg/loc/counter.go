@@ -22,6 +22,79 @@ var bufferPool = sync.Pool{
 // binaryCheckSize is the number of bytes to read for binary file detection
 const binaryCheckSize = 8192
 
+// isTestFile determines if a file is a test file based on naming conventions
+// across different languages
+func isTestFile(path string) bool {
+	base := filepath.Base(path)
+	ext := filepath.Ext(base)
+	nameWithoutExt := strings.TrimSuffix(base, ext)
+	lowerBase := strings.ToLower(base)
+	lowerName := strings.ToLower(nameWithoutExt)
+
+	// Go: *_test.go
+	if strings.HasSuffix(lowerBase, "_test.go") {
+		return true
+	}
+
+	// JavaScript/TypeScript: *.test.js, *.spec.js, *.test.ts, *.spec.ts, etc.
+	for _, testExt := range []string{".test.js", ".spec.js", ".test.ts", ".spec.ts",
+		".test.jsx", ".spec.jsx", ".test.tsx", ".spec.tsx",
+		".test.mjs", ".spec.mjs", ".test.cjs", ".spec.cjs"} {
+		if strings.HasSuffix(lowerBase, testExt) {
+			return true
+		}
+	}
+
+	// Python: test_*.py, *_test.py
+	if ext == ".py" {
+		if strings.HasPrefix(lowerName, "test_") || strings.HasSuffix(lowerName, "_test") {
+			return true
+		}
+	}
+
+	// Ruby: *_spec.rb, *_test.rb
+	if ext == ".rb" {
+		if strings.HasSuffix(lowerName, "_spec") || strings.HasSuffix(lowerName, "_test") {
+			return true
+		}
+	}
+
+	// Java/Kotlin: *Test.java, *Tests.java, *Test.kt, *Tests.kt
+	if ext == ".java" || ext == ".kt" {
+		if strings.HasSuffix(nameWithoutExt, "Test") || strings.HasSuffix(nameWithoutExt, "Tests") {
+			return true
+		}
+	}
+
+	// PHP: *Test.php
+	if ext == ".php" {
+		if strings.HasSuffix(nameWithoutExt, "Test") || strings.HasSuffix(nameWithoutExt, "Tests") {
+			return true
+		}
+	}
+
+	// Rust: Check if in tests/ directory
+	if ext == ".rs" && strings.Contains(filepath.ToSlash(path), "/tests/") {
+		return true
+	}
+
+	// C#: *Test.cs, *Tests.cs
+	if ext == ".cs" {
+		if strings.HasSuffix(nameWithoutExt, "Test") || strings.HasSuffix(nameWithoutExt, "Tests") {
+			return true
+		}
+	}
+
+	// Swift: *Tests.swift
+	if ext == ".swift" {
+		if strings.HasSuffix(nameWithoutExt, "Tests") || strings.HasSuffix(nameWithoutExt, "Test") {
+			return true
+		}
+	}
+
+	return false
+}
+
 // Counter performs parallel line counting on source files
 type Counter struct {
 	config *Config
@@ -139,10 +212,19 @@ func (c *Counter) countFile(path string) (*FileResult, error) {
 	// Derive package name from parent directory
 	pkg := filepath.Base(filepath.Dir(path))
 
+	// Determine file category
+	var category FileCategory
+	if isTestFile(path) {
+		category = FileCategoryTest
+	} else {
+		category = FileCategorySrc
+	}
+
 	result := &FileResult{
 		Path:     path,
 		Language: langName,
 		Package:  pkg,
+		Category: category,
 	}
 
 	// Count lines using streaming reader with buffer pool
@@ -495,6 +577,28 @@ func (s *Summary) addResult(r *FileResult) {
 	s.TotalBlanks += r.BlankLines
 	s.TotalComments += r.CommentLines
 
+	// Update stats based on file category
+	switch r.Category {
+	case FileCategoryTest:
+		s.TestFiles++
+		s.TestLines += r.Lines
+		s.TestCode += r.CodeLines
+		s.TestBlanks += r.BlankLines
+		s.TestComments += r.CommentLines
+	case FileCategoryOther:
+		s.OtherFiles++
+		s.OtherLines += r.Lines
+		s.OtherCode += r.CodeLines
+		s.OtherBlanks += r.BlankLines
+		s.OtherComments += r.CommentLines
+	default: // FileCategorySrc
+		s.SrcFiles++
+		s.SrcLines += r.Lines
+		s.SrcCode += r.CodeLines
+		s.SrcBlanks += r.BlankLines
+		s.SrcComments += r.CommentLines
+	}
+
 	// Update language stats
 	langStats, ok := s.ByLanguage[r.Language]
 	if !ok {
@@ -506,6 +610,28 @@ func (s *Summary) addResult(r *FileResult) {
 	langStats.Code += r.CodeLines
 	langStats.Blanks += r.BlankLines
 	langStats.Comments += r.CommentLines
+
+	// Update language sub-breakdowns based on category
+	switch r.Category {
+	case FileCategoryTest:
+		langStats.TestFiles++
+		langStats.TestLines += r.Lines
+		langStats.TestCode += r.CodeLines
+		langStats.TestBlanks += r.BlankLines
+		langStats.TestComments += r.CommentLines
+	case FileCategoryOther:
+		langStats.OtherFiles++
+		langStats.OtherLines += r.Lines
+		langStats.OtherCode += r.CodeLines
+		langStats.OtherBlanks += r.BlankLines
+		langStats.OtherComments += r.CommentLines
+	default: // FileCategorySrc
+		langStats.SrcFiles++
+		langStats.SrcLines += r.Lines
+		langStats.SrcCode += r.CodeLines
+		langStats.SrcBlanks += r.BlankLines
+		langStats.SrcComments += r.CommentLines
+	}
 
 	// Update directory stats
 	dir := filepath.Dir(r.Path)
@@ -520,6 +646,28 @@ func (s *Summary) addResult(r *FileResult) {
 	dirStats.Blanks += r.BlankLines
 	dirStats.Comments += r.CommentLines
 
+	// Update directory sub-breakdowns based on category
+	switch r.Category {
+	case FileCategoryTest:
+		dirStats.TestFiles++
+		dirStats.TestLines += r.Lines
+		dirStats.TestCode += r.CodeLines
+		dirStats.TestBlanks += r.BlankLines
+		dirStats.TestComments += r.CommentLines
+	case FileCategoryOther:
+		dirStats.OtherFiles++
+		dirStats.OtherLines += r.Lines
+		dirStats.OtherCode += r.CodeLines
+		dirStats.OtherBlanks += r.BlankLines
+		dirStats.OtherComments += r.CommentLines
+	default: // FileCategorySrc
+		dirStats.SrcFiles++
+		dirStats.SrcLines += r.Lines
+		dirStats.SrcCode += r.CodeLines
+		dirStats.SrcBlanks += r.BlankLines
+		dirStats.SrcComments += r.CommentLines
+	}
+
 	// Update package stats
 	pkgStats, ok := s.ByPackage[r.Package]
 	if !ok {
@@ -531,4 +679,26 @@ func (s *Summary) addResult(r *FileResult) {
 	pkgStats.Code += r.CodeLines
 	pkgStats.Blanks += r.BlankLines
 	pkgStats.Comments += r.CommentLines
+
+	// Update package sub-breakdowns based on category
+	switch r.Category {
+	case FileCategoryTest:
+		pkgStats.TestFiles++
+		pkgStats.TestLines += r.Lines
+		pkgStats.TestCode += r.CodeLines
+		pkgStats.TestBlanks += r.BlankLines
+		pkgStats.TestComments += r.CommentLines
+	case FileCategoryOther:
+		pkgStats.OtherFiles++
+		pkgStats.OtherLines += r.Lines
+		pkgStats.OtherCode += r.CodeLines
+		pkgStats.OtherBlanks += r.BlankLines
+		pkgStats.OtherComments += r.CommentLines
+	default: // FileCategorySrc
+		pkgStats.SrcFiles++
+		pkgStats.SrcLines += r.Lines
+		pkgStats.SrcCode += r.CodeLines
+		pkgStats.SrcBlanks += r.BlankLines
+		pkgStats.SrcComments += r.CommentLines
+	}
 }
