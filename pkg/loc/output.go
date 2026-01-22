@@ -34,7 +34,7 @@ type OutputConfig struct {
 func FormatOutput(summary *Summary, config *OutputConfig) string {
 	switch config.Format {
 	case FormatJSON:
-		return formatJSON(summary)
+		return formatJSON(summary, config)
 	case FormatRaw:
 		return formatRaw(summary, config)
 	default:
@@ -824,8 +824,9 @@ func formatPackageTable(summary *Summary, config *OutputConfig) string {
 // jsonOutput represents the JSON output structure
 type jsonOutput struct {
 	Total       jsonTotal            `json:"total"`
-	Source      *jsonTestStats       `json:"source,omitempty"`
-	Tests       *jsonTestStats       `json:"tests,omitempty"`
+	Src         *jsonTestStats       `json:"src,omitempty"`
+	Test        *jsonTestStats       `json:"test,omitempty"`
+	Other       *jsonTestStats       `json:"other,omitempty"`
 	ByLanguage  []jsonLanguageStats  `json:"byLanguage"`
 	ByDirectory []jsonDirectoryStats `json:"byDirectory"`
 	ByPackage   []jsonPackageStats   `json:"byPackage"`
@@ -847,35 +848,54 @@ type jsonTestStats struct {
 	Comments int `json:"comments"`
 }
 
+// jsonSubStats represents sub-stats for src/test/other in breakdown entries
+type jsonSubStats struct {
+	Files    int `json:"files"`
+	Code     int `json:"code"`
+	Comments int `json:"comments"`
+}
+
 type jsonLanguageStats struct {
-	Language string `json:"language"`
-	Files    int    `json:"files"`
-	Lines    int    `json:"lines"`
-	Code     int    `json:"code"`
-	Blanks   int    `json:"blanks"`
-	Comments int    `json:"comments"`
+	Language string        `json:"language"`
+	Files    int           `json:"files"`
+	Lines    int           `json:"lines"`
+	Code     int           `json:"code"`
+	Blanks   int           `json:"blanks"`
+	Comments int           `json:"comments"`
+	Src      *jsonSubStats `json:"src,omitempty"`
+	Test     *jsonSubStats `json:"test,omitempty"`
+	Other    *jsonSubStats `json:"other,omitempty"`
 }
 
 type jsonDirectoryStats struct {
-	Path     string `json:"path"`
-	Files    int    `json:"files"`
-	Lines    int    `json:"lines"`
-	Code     int    `json:"code"`
-	Blanks   int    `json:"blanks"`
-	Comments int    `json:"comments"`
+	Path     string        `json:"path"`
+	Files    int           `json:"files"`
+	Lines    int           `json:"lines"`
+	Code     int           `json:"code"`
+	Blanks   int           `json:"blanks"`
+	Comments int           `json:"comments"`
+	Src      *jsonSubStats `json:"src,omitempty"`
+	Test     *jsonSubStats `json:"test,omitempty"`
+	Other    *jsonSubStats `json:"other,omitempty"`
 }
 
 type jsonPackageStats struct {
-	Package  string `json:"package"`
-	Files    int    `json:"files"`
-	Lines    int    `json:"lines"`
-	Code     int    `json:"code"`
-	Blanks   int    `json:"blanks"`
-	Comments int    `json:"comments"`
+	Package  string        `json:"package"`
+	Files    int           `json:"files"`
+	Lines    int           `json:"lines"`
+	Code     int           `json:"code"`
+	Blanks   int           `json:"blanks"`
+	Comments int           `json:"comments"`
+	Src      *jsonSubStats `json:"src,omitempty"`
+	Test     *jsonSubStats `json:"test,omitempty"`
+	Other    *jsonSubStats `json:"other,omitempty"`
 }
 
-// formatJSON formats the summary as JSON (always includes full data)
-func formatJSON(summary *Summary) string {
+// formatJSON formats the summary as JSON
+// When not combined: includes src/test/other breakdown in top-level and in each breakdown entry
+// When combined: omits src/test/other fields
+// When showAll: includes "other" stats
+func formatJSON(summary *Summary, config *OutputConfig) string {
 	output := jsonOutput{
 		Total: jsonTotal{
 			Files:    summary.TotalFiles,
@@ -884,23 +904,37 @@ func formatJSON(summary *Summary) string {
 			Blanks:   summary.TotalBlanks,
 			Comments: summary.TotalComments,
 		},
-		Source: &jsonTestStats{
+		ByLanguage:  make([]jsonLanguageStats, 0, len(summary.ByLanguage)),
+		ByDirectory: make([]jsonDirectoryStats, 0, len(summary.ByDirectory)),
+		ByPackage:   make([]jsonPackageStats, 0, len(summary.ByPackage)),
+	}
+
+	// Add src/test/other stats when not combined
+	if !config.Combined {
+		output.Src = &jsonTestStats{
 			Files:    summary.SrcFiles,
 			Lines:    summary.SrcLines,
 			Code:     summary.SrcCode,
 			Blanks:   summary.SrcBlanks,
 			Comments: summary.SrcComments,
-		},
-		Tests: &jsonTestStats{
+		}
+		output.Test = &jsonTestStats{
 			Files:    summary.TestFiles,
 			Lines:    summary.TestLines,
 			Code:     summary.TestCode,
 			Blanks:   summary.TestBlanks,
 			Comments: summary.TestComments,
-		},
-		ByLanguage:  make([]jsonLanguageStats, 0, len(summary.ByLanguage)),
-		ByDirectory: make([]jsonDirectoryStats, 0, len(summary.ByDirectory)),
-		ByPackage:   make([]jsonPackageStats, 0, len(summary.ByPackage)),
+		}
+		// Include "other" only when --all is set and there are other files
+		if config.ShowAll && hasOtherFiles(summary) {
+			output.Other = &jsonTestStats{
+				Files:    summary.OtherFiles,
+				Lines:    summary.OtherLines,
+				Code:     summary.OtherCode,
+				Blanks:   summary.OtherBlanks,
+				Comments: summary.OtherComments,
+			}
+		}
 	}
 
 	// Sort and add language stats
@@ -911,14 +945,36 @@ func formatJSON(summary *Summary) string {
 	sort.Strings(languages)
 	for _, lang := range languages {
 		stats := summary.ByLanguage[lang]
-		output.ByLanguage = append(output.ByLanguage, jsonLanguageStats{
+		langStats := jsonLanguageStats{
 			Language: stats.Language,
 			Files:    stats.Files,
 			Lines:    stats.Lines,
 			Code:     stats.Code,
 			Blanks:   stats.Blanks,
 			Comments: stats.Comments,
-		})
+		}
+		// Add sub-stats when not combined
+		if !config.Combined {
+			langStats.Src = &jsonSubStats{
+				Files:    stats.SrcFiles,
+				Code:     stats.SrcCode,
+				Comments: stats.SrcComments,
+			}
+			langStats.Test = &jsonSubStats{
+				Files:    stats.TestFiles,
+				Code:     stats.TestCode,
+				Comments: stats.TestComments,
+			}
+			// Include "other" only when --all is set and there are other files for this language
+			if config.ShowAll && stats.OtherFiles > 0 {
+				langStats.Other = &jsonSubStats{
+					Files:    stats.OtherFiles,
+					Code:     stats.OtherCode,
+					Comments: stats.OtherComments,
+				}
+			}
+		}
+		output.ByLanguage = append(output.ByLanguage, langStats)
 	}
 
 	// Sort and add directory stats
@@ -929,14 +985,36 @@ func formatJSON(summary *Summary) string {
 	sort.Strings(dirs)
 	for _, dir := range dirs {
 		stats := summary.ByDirectory[dir]
-		output.ByDirectory = append(output.ByDirectory, jsonDirectoryStats{
+		dirStats := jsonDirectoryStats{
 			Path:     stats.Path,
 			Files:    stats.Files,
 			Lines:    stats.Lines,
 			Code:     stats.Code,
 			Blanks:   stats.Blanks,
 			Comments: stats.Comments,
-		})
+		}
+		// Add sub-stats when not combined
+		if !config.Combined {
+			dirStats.Src = &jsonSubStats{
+				Files:    stats.SrcFiles,
+				Code:     stats.SrcCode,
+				Comments: stats.SrcComments,
+			}
+			dirStats.Test = &jsonSubStats{
+				Files:    stats.TestFiles,
+				Code:     stats.TestCode,
+				Comments: stats.TestComments,
+			}
+			// Include "other" only when --all is set and there are other files for this directory
+			if config.ShowAll && stats.OtherFiles > 0 {
+				dirStats.Other = &jsonSubStats{
+					Files:    stats.OtherFiles,
+					Code:     stats.OtherCode,
+					Comments: stats.OtherComments,
+				}
+			}
+		}
+		output.ByDirectory = append(output.ByDirectory, dirStats)
 	}
 
 	// Sort and add package stats
@@ -947,14 +1025,36 @@ func formatJSON(summary *Summary) string {
 	sort.Strings(packages)
 	for _, pkg := range packages {
 		stats := summary.ByPackage[pkg]
-		output.ByPackage = append(output.ByPackage, jsonPackageStats{
+		pkgStats := jsonPackageStats{
 			Package:  stats.Package,
 			Files:    stats.Files,
 			Lines:    stats.Lines,
 			Code:     stats.Code,
 			Blanks:   stats.Blanks,
 			Comments: stats.Comments,
-		})
+		}
+		// Add sub-stats when not combined
+		if !config.Combined {
+			pkgStats.Src = &jsonSubStats{
+				Files:    stats.SrcFiles,
+				Code:     stats.SrcCode,
+				Comments: stats.SrcComments,
+			}
+			pkgStats.Test = &jsonSubStats{
+				Files:    stats.TestFiles,
+				Code:     stats.TestCode,
+				Comments: stats.TestComments,
+			}
+			// Include "other" only when --all is set and there are other files for this package
+			if config.ShowAll && stats.OtherFiles > 0 {
+				pkgStats.Other = &jsonSubStats{
+					Files:    stats.OtherFiles,
+					Code:     stats.OtherCode,
+					Comments: stats.OtherComments,
+				}
+			}
+		}
+		output.ByPackage = append(output.ByPackage, pkgStats)
 	}
 
 	data, _ := json.MarshalIndent(output, "", "  ")
