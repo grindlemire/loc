@@ -76,14 +76,20 @@ func main() {
 
 	output := buf.String()
 
-	// Should show pretty output with "LOC" header
-	if !strings.Contains(output, "LOC - Lines of Code Counter") {
-		t.Errorf("expected pretty output header, got: %s", output)
+	// Should show pretty table output with Files, Code, Comments columns
+	if !strings.Contains(output, "Files") {
+		t.Errorf("expected 'Files' header in pretty output, got: %s", output)
+	}
+	if !strings.Contains(output, "Code") {
+		t.Errorf("expected 'Code' header in pretty output, got: %s", output)
+	}
+	if !strings.Contains(output, "Comments") {
+		t.Errorf("expected 'Comments' header in pretty output, got: %s", output)
 	}
 
-	// Should show total summary
-	if !strings.Contains(output, "Total:") {
-		t.Errorf("expected Total: in output, got: %s", output)
+	// Should have table border characters (rounded borders)
+	if !strings.Contains(output, "\u2502") && !strings.Contains(output, "\u2500") {
+		t.Errorf("expected table border characters in output, got: %s", output)
 	}
 }
 

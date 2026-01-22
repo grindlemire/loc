@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 )
 
 // OutputFormat represents the output format type
@@ -22,6 +25,7 @@ type OutputConfig struct {
 	ByLanguage bool
 	ByDir      bool
 	ByPackage  bool
+	NoColor    bool
 }
 
 // FormatOutput formats a Summary according to the given OutputConfig
@@ -59,47 +63,72 @@ func formatNumber(n int) string {
 	return result.String()
 }
 
-// formatPretty formats the summary as pretty terminal output with box-drawing characters
+// formatPretty formats the summary as pretty terminal output with styled tables
 func formatPretty(summary *Summary, config *OutputConfig) string {
-	var sb strings.Builder
+	// Check if any breakdown flags are set
+	hasBreakdown := config.ByLanguage || config.ByDir || config.ByPackage
 
-	// Header
-	sb.WriteString("\n  LOC - Lines of Code Counter\n")
-	sb.WriteString("  ")
-	sb.WriteString(strings.Repeat("\u2500", 60)) // horizontal line
-	sb.WriteString("\n")
+	// If no breakdown flags, show the summary table
+	if !hasBreakdown {
+		return formatSummaryTable(summary, config)
+	}
+
+	// Otherwise, show breakdown tables (these will be updated in Phase 3)
+	var sb strings.Builder
 
 	// Show breakdowns if requested
 	if config.ByLanguage && len(summary.ByLanguage) > 0 {
-		sb.WriteString("\n")
 		sb.WriteString(formatLanguageTable(summary))
 	}
 
 	if config.ByDir && len(summary.ByDirectory) > 0 {
-		sb.WriteString("\n")
+		if sb.Len() > 0 {
+			sb.WriteString("\n")
+		}
 		sb.WriteString(formatDirectoryTable(summary))
 	}
 
 	if config.ByPackage && len(summary.ByPackage) > 0 {
-		sb.WriteString("\n")
+		if sb.Len() > 0 {
+			sb.WriteString("\n")
+		}
 		sb.WriteString(formatPackageTable(summary))
 	}
 
-	// If any breakdowns were shown, add a separator before the total
-	if config.ByLanguage || config.ByDir || config.ByPackage {
-		sb.WriteString("\n  ")
-		sb.WriteString(strings.Repeat("\u2500", 60))
-		sb.WriteString("\n")
+	return sb.String()
+}
+
+// formatSummaryTable renders the default summary table using Charmbracelet lipgloss/table
+func formatSummaryTable(summary *Summary, config *OutputConfig) string {
+	// Get appropriate styles based on NoColor setting
+	var styles *Styles
+	if config.NoColor {
+		styles = NoColorStyles()
+	} else {
+		styles = DefaultStyles()
 	}
 
-	// Total summary line
-	sb.WriteString(fmt.Sprintf("  Total: %s files | %s lines | %s code | %s comments\n",
-		formatNumber(summary.TotalFiles),
-		formatNumber(summary.TotalLines),
-		formatNumber(summary.TotalCode),
-		formatNumber(summary.TotalComments)))
+	// Create the table with rounded borders
+	t := table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(styles.Border).
+		Headers("Files", "Code", "Comments").
+		Row(
+			formatNumber(summary.TotalFiles),
+			formatNumber(summary.TotalCode),
+			formatNumber(summary.TotalComments),
+		)
 
-	return sb.String()
+	// Style the header row with accent color
+	t.StyleFunc(func(row, col int) lipgloss.Style {
+		if row == table.HeaderRow {
+			return styles.Label.Padding(0, 1).Align(lipgloss.Center)
+		}
+		// Data rows: right-align numbers
+		return styles.Number.Padding(0, 1).Align(lipgloss.Right)
+	})
+
+	return t.Render() + "\n"
 }
 
 // formatLanguageTable creates a pretty table for language breakdown
@@ -142,20 +171,20 @@ func formatLanguageTable(summary *Summary) string {
 	sb.WriteString("  By Language\n")
 
 	// Top border
-	sb.WriteString("  \u250c") // top-left corner
-	sb.WriteString(strings.Repeat("\u2500", langWidth+2))
-	sb.WriteString("\u252c") // top-tee
-	sb.WriteString(strings.Repeat("\u2500", filesWidth+2))
-	sb.WriteString("\u252c")
-	sb.WriteString(strings.Repeat("\u2500", linesWidth+2))
-	sb.WriteString("\u252c")
-	sb.WriteString(strings.Repeat("\u2500", codeWidth+2))
-	sb.WriteString("\u252c")
-	sb.WriteString(strings.Repeat("\u2500", commentsWidth+2))
-	sb.WriteString("\u2510\n") // top-right corner
+	sb.WriteString("  +")
+	sb.WriteString(strings.Repeat("-", langWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", filesWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", linesWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", codeWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", commentsWidth+2))
+	sb.WriteString("+\n")
 
 	// Header row
-	sb.WriteString(fmt.Sprintf("  \u2502 %-*s \u2502 %*s \u2502 %*s \u2502 %*s \u2502 %*s \u2502\n",
+	sb.WriteString(fmt.Sprintf("  | %-*s | %*s | %*s | %*s | %*s |\n",
 		langWidth, "Language",
 		filesWidth, "Files",
 		linesWidth, "Lines",
@@ -163,22 +192,22 @@ func formatLanguageTable(summary *Summary) string {
 		commentsWidth, "Comments"))
 
 	// Header separator
-	sb.WriteString("  \u251c") // left-tee
-	sb.WriteString(strings.Repeat("\u2500", langWidth+2))
-	sb.WriteString("\u253c") // cross
-	sb.WriteString(strings.Repeat("\u2500", filesWidth+2))
-	sb.WriteString("\u253c")
-	sb.WriteString(strings.Repeat("\u2500", linesWidth+2))
-	sb.WriteString("\u253c")
-	sb.WriteString(strings.Repeat("\u2500", codeWidth+2))
-	sb.WriteString("\u253c")
-	sb.WriteString(strings.Repeat("\u2500", commentsWidth+2))
-	sb.WriteString("\u2524\n") // right-tee
+	sb.WriteString("  +")
+	sb.WriteString(strings.Repeat("-", langWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", filesWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", linesWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", codeWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", commentsWidth+2))
+	sb.WriteString("+\n")
 
 	// Data rows
 	for _, lang := range languages {
 		stats := summary.ByLanguage[lang]
-		sb.WriteString(fmt.Sprintf("  \u2502 %-*s \u2502 %*s \u2502 %*s \u2502 %*s \u2502 %*s \u2502\n",
+		sb.WriteString(fmt.Sprintf("  | %-*s | %*s | %*s | %*s | %*s |\n",
 			langWidth, lang,
 			filesWidth, formatNumber(stats.Files),
 			linesWidth, formatNumber(stats.Lines),
@@ -187,17 +216,17 @@ func formatLanguageTable(summary *Summary) string {
 	}
 
 	// Bottom border
-	sb.WriteString("  \u2514") // bottom-left corner
-	sb.WriteString(strings.Repeat("\u2500", langWidth+2))
-	sb.WriteString("\u2534") // bottom-tee
-	sb.WriteString(strings.Repeat("\u2500", filesWidth+2))
-	sb.WriteString("\u2534")
-	sb.WriteString(strings.Repeat("\u2500", linesWidth+2))
-	sb.WriteString("\u2534")
-	sb.WriteString(strings.Repeat("\u2500", codeWidth+2))
-	sb.WriteString("\u2534")
-	sb.WriteString(strings.Repeat("\u2500", commentsWidth+2))
-	sb.WriteString("\u2518\n") // bottom-right corner
+	sb.WriteString("  +")
+	sb.WriteString(strings.Repeat("-", langWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", filesWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", linesWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", codeWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", commentsWidth+2))
+	sb.WriteString("+\n")
 
 	return sb.String()
 }
@@ -234,46 +263,46 @@ func formatDirectoryTable(summary *Summary) string {
 	sb.WriteString("  By Directory\n")
 
 	// Top border
-	sb.WriteString("  \u250c")
-	sb.WriteString(strings.Repeat("\u2500", dirWidth+2))
-	sb.WriteString("\u252c")
-	sb.WriteString(strings.Repeat("\u2500", filesWidth+2))
-	sb.WriteString("\u252c")
-	sb.WriteString(strings.Repeat("\u2500", linesWidth+2))
-	sb.WriteString("\u2510\n")
+	sb.WriteString("  +")
+	sb.WriteString(strings.Repeat("-", dirWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", filesWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", linesWidth+2))
+	sb.WriteString("+\n")
 
 	// Header row
-	sb.WriteString(fmt.Sprintf("  \u2502 %-*s \u2502 %*s \u2502 %*s \u2502\n",
+	sb.WriteString(fmt.Sprintf("  | %-*s | %*s | %*s |\n",
 		dirWidth, "Directory",
 		filesWidth, "Files",
 		linesWidth, "Lines"))
 
 	// Header separator
-	sb.WriteString("  \u251c")
-	sb.WriteString(strings.Repeat("\u2500", dirWidth+2))
-	sb.WriteString("\u253c")
-	sb.WriteString(strings.Repeat("\u2500", filesWidth+2))
-	sb.WriteString("\u253c")
-	sb.WriteString(strings.Repeat("\u2500", linesWidth+2))
-	sb.WriteString("\u2524\n")
+	sb.WriteString("  +")
+	sb.WriteString(strings.Repeat("-", dirWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", filesWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", linesWidth+2))
+	sb.WriteString("+\n")
 
 	// Data rows
 	for _, dir := range dirs {
 		stats := summary.ByDirectory[dir]
-		sb.WriteString(fmt.Sprintf("  \u2502 %-*s \u2502 %*s \u2502 %*s \u2502\n",
+		sb.WriteString(fmt.Sprintf("  | %-*s | %*s | %*s |\n",
 			dirWidth, dir,
 			filesWidth, formatNumber(stats.Files),
 			linesWidth, formatNumber(stats.Lines)))
 	}
 
 	// Bottom border
-	sb.WriteString("  \u2514")
-	sb.WriteString(strings.Repeat("\u2500", dirWidth+2))
-	sb.WriteString("\u2534")
-	sb.WriteString(strings.Repeat("\u2500", filesWidth+2))
-	sb.WriteString("\u2534")
-	sb.WriteString(strings.Repeat("\u2500", linesWidth+2))
-	sb.WriteString("\u2518\n")
+	sb.WriteString("  +")
+	sb.WriteString(strings.Repeat("-", dirWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", filesWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", linesWidth+2))
+	sb.WriteString("+\n")
 
 	return sb.String()
 }
@@ -318,20 +347,20 @@ func formatPackageTable(summary *Summary) string {
 	sb.WriteString("  By Package\n")
 
 	// Top border
-	sb.WriteString("  \u250c")
-	sb.WriteString(strings.Repeat("\u2500", pkgWidth+2))
-	sb.WriteString("\u252c")
-	sb.WriteString(strings.Repeat("\u2500", filesWidth+2))
-	sb.WriteString("\u252c")
-	sb.WriteString(strings.Repeat("\u2500", linesWidth+2))
-	sb.WriteString("\u252c")
-	sb.WriteString(strings.Repeat("\u2500", codeWidth+2))
-	sb.WriteString("\u252c")
-	sb.WriteString(strings.Repeat("\u2500", commentsWidth+2))
-	sb.WriteString("\u2510\n")
+	sb.WriteString("  +")
+	sb.WriteString(strings.Repeat("-", pkgWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", filesWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", linesWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", codeWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", commentsWidth+2))
+	sb.WriteString("+\n")
 
 	// Header row
-	sb.WriteString(fmt.Sprintf("  \u2502 %-*s \u2502 %*s \u2502 %*s \u2502 %*s \u2502 %*s \u2502\n",
+	sb.WriteString(fmt.Sprintf("  | %-*s | %*s | %*s | %*s | %*s |\n",
 		pkgWidth, "Package",
 		filesWidth, "Files",
 		linesWidth, "Lines",
@@ -339,22 +368,22 @@ func formatPackageTable(summary *Summary) string {
 		commentsWidth, "Comments"))
 
 	// Header separator
-	sb.WriteString("  \u251c")
-	sb.WriteString(strings.Repeat("\u2500", pkgWidth+2))
-	sb.WriteString("\u253c")
-	sb.WriteString(strings.Repeat("\u2500", filesWidth+2))
-	sb.WriteString("\u253c")
-	sb.WriteString(strings.Repeat("\u2500", linesWidth+2))
-	sb.WriteString("\u253c")
-	sb.WriteString(strings.Repeat("\u2500", codeWidth+2))
-	sb.WriteString("\u253c")
-	sb.WriteString(strings.Repeat("\u2500", commentsWidth+2))
-	sb.WriteString("\u2524\n")
+	sb.WriteString("  +")
+	sb.WriteString(strings.Repeat("-", pkgWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", filesWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", linesWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", codeWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", commentsWidth+2))
+	sb.WriteString("+\n")
 
 	// Data rows
 	for _, pkg := range packages {
 		stats := summary.ByPackage[pkg]
-		sb.WriteString(fmt.Sprintf("  \u2502 %-*s \u2502 %*s \u2502 %*s \u2502 %*s \u2502 %*s \u2502\n",
+		sb.WriteString(fmt.Sprintf("  | %-*s | %*s | %*s | %*s | %*s |\n",
 			pkgWidth, pkg,
 			filesWidth, formatNumber(stats.Files),
 			linesWidth, formatNumber(stats.Lines),
@@ -363,17 +392,17 @@ func formatPackageTable(summary *Summary) string {
 	}
 
 	// Bottom border
-	sb.WriteString("  \u2514")
-	sb.WriteString(strings.Repeat("\u2500", pkgWidth+2))
-	sb.WriteString("\u2534")
-	sb.WriteString(strings.Repeat("\u2500", filesWidth+2))
-	sb.WriteString("\u2534")
-	sb.WriteString(strings.Repeat("\u2500", linesWidth+2))
-	sb.WriteString("\u2534")
-	sb.WriteString(strings.Repeat("\u2500", codeWidth+2))
-	sb.WriteString("\u2534")
-	sb.WriteString(strings.Repeat("\u2500", commentsWidth+2))
-	sb.WriteString("\u2518\n")
+	sb.WriteString("  +")
+	sb.WriteString(strings.Repeat("-", pkgWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", filesWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", linesWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", codeWidth+2))
+	sb.WriteString("+")
+	sb.WriteString(strings.Repeat("-", commentsWidth+2))
+	sb.WriteString("+\n")
 
 	return sb.String()
 }

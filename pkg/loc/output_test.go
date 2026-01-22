@@ -125,23 +125,31 @@ func TestPrettyOutputSummaryOnly(t *testing.T) {
 
 	output := FormatOutput(summary, config)
 
-	// Check header is present
-	if !strings.Contains(output, "LOC - Lines of Code Counter") {
-		t.Error("expected header in pretty output")
+	// Check summary table headers are present (Files, Code, Comments)
+	if !strings.Contains(output, "Files") {
+		t.Error("expected 'Files' header in summary table")
+	}
+	if !strings.Contains(output, "Code") {
+		t.Error("expected 'Code' header in summary table")
+	}
+	if !strings.Contains(output, "Comments") {
+		t.Error("expected 'Comments' header in summary table")
 	}
 
-	// Check summary line with formatted numbers
-	if !strings.Contains(output, "90 files") {
-		t.Error("expected '90 files' in output")
+	// Check formatted numbers are present
+	if !strings.Contains(output, "90") {
+		t.Error("expected '90' (files count) in output")
 	}
-	if !strings.Contains(output, "6,673 lines") {
-		t.Error("expected '6,673 lines' in output")
+	if !strings.Contains(output, "5,511") {
+		t.Error("expected '5,511' (code count) in output")
 	}
-	if !strings.Contains(output, "5,511 code") {
-		t.Error("expected '5,511 code' in output")
+	if !strings.Contains(output, "607") {
+		t.Error("expected '607' (comments count) in output")
 	}
-	if !strings.Contains(output, "607 comments") {
-		t.Error("expected '607 comments' in output")
+
+	// Check that rounded border characters are present
+	if !strings.Contains(output, "\u256d") && !strings.Contains(output, "\u2502") {
+		t.Error("expected rounded border characters in output")
 	}
 
 	// Check that breakdown tables are NOT present
@@ -181,15 +189,15 @@ func TestPrettyOutputWithLanguageBreakdown(t *testing.T) {
 		t.Error("expected 'Python' in language table")
 	}
 
-	// Check box-drawing characters are present
-	if !strings.Contains(output, "\u250c") { // top-left corner
-		t.Error("expected box-drawing characters in output")
+	// Check ASCII table characters are present
+	if !strings.Contains(output, "+") { // corner/junction
+		t.Error("expected '+' characters in output")
 	}
-	if !strings.Contains(output, "\u2502") { // vertical line
-		t.Error("expected vertical line characters in output")
+	if !strings.Contains(output, "|") { // vertical line
+		t.Error("expected '|' characters in output")
 	}
-	if !strings.Contains(output, "\u2518") { // bottom-right corner
-		t.Error("expected box-drawing characters in output")
+	if !strings.Contains(output, "-") { // horizontal line
+		t.Error("expected '-' characters in output")
 	}
 }
 
@@ -264,10 +272,9 @@ func TestPrettyOutputWithAllBreakdowns(t *testing.T) {
 		t.Error("expected 'By Package' table")
 	}
 
-	// Check summary line is still present
-	if !strings.Contains(output, "Total:") {
-		t.Error("expected 'Total:' summary line")
-	}
+	// Note: The "Total:" summary line is removed in the new format.
+	// When breakdown flags are set, the breakdown tables are shown.
+	// The summary table is only shown when NO breakdown flags are set.
 }
 
 func TestJSONOutputStructure(t *testing.T) {
@@ -575,10 +582,16 @@ func TestEmptySummary(t *testing.T) {
 	}
 
 	t.Run("pretty", func(t *testing.T) {
-		config := &OutputConfig{Format: FormatPretty, ByLanguage: true}
+		// With no breakdown flags, show summary table
+		config := &OutputConfig{Format: FormatPretty}
 		output := FormatOutput(summary, config)
-		if !strings.Contains(output, "0 files") {
-			t.Error("expected '0 files' in output")
+		// Should have the table headers
+		if !strings.Contains(output, "Files") {
+			t.Error("expected 'Files' header in output")
+		}
+		// Should have zeros in the table
+		if !strings.Contains(output, "0") {
+			t.Error("expected '0' in output for empty summary")
 		}
 		// Should not crash with empty maps
 	})
@@ -615,9 +628,10 @@ func TestOutputFormatDefault(t *testing.T) {
 
 	output := FormatOutput(summary, config)
 
-	// Should produce pretty output (with header)
-	if !strings.Contains(output, "LOC - Lines of Code Counter") {
-		t.Error("expected pretty output for empty/default format")
+	// Should produce pretty output (with summary table)
+	// Check for table headers
+	if !strings.Contains(output, "Files") || !strings.Contains(output, "Code") || !strings.Contains(output, "Comments") {
+		t.Error("expected pretty output with summary table for empty/default format")
 	}
 }
 
@@ -627,9 +641,10 @@ func TestPrettyOutputHorizontalLine(t *testing.T) {
 
 	output := FormatOutput(summary, config)
 
-	// Check horizontal line character is present
-	if !strings.Contains(output, "\u2500") {
-		t.Error("expected horizontal line character in output")
+	// Check that Unicode table border characters are present (rounded borders)
+	// The rounded border uses characters like: horizontal line
+	if !strings.Contains(output, "\u2500") && !strings.Contains(output, "\u2502") {
+		t.Error("expected Unicode border characters in output")
 	}
 }
 
@@ -648,14 +663,49 @@ func TestLargeNumbers(t *testing.T) {
 	config := &OutputConfig{Format: FormatPretty}
 	output := FormatOutput(summary, config)
 
-	// Check formatted numbers
-	if !strings.Contains(output, "12,345 files") {
-		t.Error("expected '12,345 files' in output")
+	// Check formatted numbers (now in table format)
+	if !strings.Contains(output, "12,345") {
+		t.Error("expected '12,345' (files) in output")
 	}
-	if !strings.Contains(output, "1,234,567 lines") {
-		t.Error("expected '1,234,567 lines' in output")
+	if !strings.Contains(output, "987,654") {
+		t.Error("expected '987,654' (code) in output")
 	}
-	if !strings.Contains(output, "987,654 code") {
-		t.Error("expected '987,654 code' in output")
+	if !strings.Contains(output, "123,457") {
+		t.Error("expected '123,457' (comments) in output")
+	}
+}
+
+func TestNoColorOutput(t *testing.T) {
+	summary := createTestSummary()
+	config := &OutputConfig{
+		Format:  FormatPretty,
+		NoColor: true,
+	}
+
+	output := FormatOutput(summary, config)
+
+	// Should still have table structure with rounded borders
+	if !strings.Contains(output, "Files") {
+		t.Error("expected 'Files' header in no-color output")
+	}
+	if !strings.Contains(output, "Code") {
+		t.Error("expected 'Code' header in no-color output")
+	}
+	if !strings.Contains(output, "Comments") {
+		t.Error("expected 'Comments' header in no-color output")
+	}
+
+	// Check that formatted numbers are present
+	if !strings.Contains(output, "90") {
+		t.Error("expected '90' (files count) in no-color output")
+	}
+	if !strings.Contains(output, "5,511") {
+		t.Error("expected '5,511' (code count) in no-color output")
+	}
+
+	// Rounded Unicode borders should still be present
+	// The rounded border uses characters like: corners and lines
+	if !strings.Contains(output, "\u2502") && !strings.Contains(output, "\u2500") {
+		t.Error("expected Unicode border characters in no-color output")
 	}
 }
