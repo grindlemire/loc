@@ -602,6 +602,244 @@ func TestMatchGlobPattern(t *testing.T) {
 	}
 }
 
+func TestScannerNoTestsFilter(t *testing.T) {
+	tempDir := t.TempDir()
+
+	files := map[string]string{
+		"main.go":       "package main",
+		"main_test.go":  "package main",
+		"utils.go":      "package main",
+		"utils_test.go": "package main",
+		"app.py":        "print('hi')",
+		"test_app.py":   "import unittest",
+	}
+	createTestFiles(t, tempDir, files)
+
+	config := &Config{
+		NoTests: true,
+	}
+	scanner := NewScanner(config)
+
+	result, err := scanner.Scan(tempDir)
+	if err != nil {
+		t.Fatalf("Scan failed: %v", err)
+	}
+
+	relPaths := getRelativePaths(t, tempDir, result)
+
+	expected := []string{"app.py", "main.go", "utils.go"}
+	sort.Strings(expected)
+
+	if len(relPaths) != len(expected) {
+		t.Errorf("Expected %d files, got %d", len(expected), len(relPaths))
+		t.Errorf("Expected: %v", expected)
+		t.Errorf("Got: %v", relPaths)
+		return
+	}
+
+	for i, path := range expected {
+		if relPaths[i] != path {
+			t.Errorf("Expected %s at position %d, got %s", path, i, relPaths[i])
+		}
+	}
+}
+
+func TestScannerTestsOnlyFilter(t *testing.T) {
+	tempDir := t.TempDir()
+
+	files := map[string]string{
+		"main.go":       "package main",
+		"main_test.go":  "package main",
+		"utils.go":      "package main",
+		"utils_test.go": "package main",
+		"app.py":        "print('hi')",
+		"test_app.py":   "import unittest",
+	}
+	createTestFiles(t, tempDir, files)
+
+	config := &Config{
+		TestsOnly: true,
+	}
+	scanner := NewScanner(config)
+
+	result, err := scanner.Scan(tempDir)
+	if err != nil {
+		t.Fatalf("Scan failed: %v", err)
+	}
+
+	relPaths := getRelativePaths(t, tempDir, result)
+
+	expected := []string{"main_test.go", "test_app.py", "utils_test.go"}
+	sort.Strings(expected)
+
+	if len(relPaths) != len(expected) {
+		t.Errorf("Expected %d files, got %d", len(expected), len(relPaths))
+		t.Errorf("Expected: %v", expected)
+		t.Errorf("Got: %v", relPaths)
+		return
+	}
+
+	for i, path := range expected {
+		if relPaths[i] != path {
+			t.Errorf("Expected %s at position %d, got %s", path, i, relPaths[i])
+		}
+	}
+}
+
+func TestScannerLanguageFilter(t *testing.T) {
+	tempDir := t.TempDir()
+
+	files := map[string]string{
+		"main.go":      "package main",
+		"main_test.go": "package main",
+		"utils.go":     "package main",
+		"app.py":       "print('hi')",
+		"test_app.py":  "import unittest",
+		"index.js":     "console.log('hi')",
+	}
+	createTestFiles(t, tempDir, files)
+
+	t.Run("single language", func(t *testing.T) {
+		config := &Config{
+			Languages: []string{"Go"},
+		}
+		scanner := NewScanner(config)
+
+		result, err := scanner.Scan(tempDir)
+		if err != nil {
+			t.Fatalf("Scan failed: %v", err)
+		}
+
+		relPaths := getRelativePaths(t, tempDir, result)
+
+		expected := []string{"main.go", "main_test.go", "utils.go"}
+		sort.Strings(expected)
+
+		if len(relPaths) != len(expected) {
+			t.Errorf("Expected %d files, got %d", len(expected), len(relPaths))
+			t.Errorf("Expected: %v", expected)
+			t.Errorf("Got: %v", relPaths)
+		}
+	})
+
+	t.Run("multiple languages", func(t *testing.T) {
+		config := &Config{
+			Languages: []string{"Go", "Python"},
+		}
+		scanner := NewScanner(config)
+
+		result, err := scanner.Scan(tempDir)
+		if err != nil {
+			t.Fatalf("Scan failed: %v", err)
+		}
+
+		relPaths := getRelativePaths(t, tempDir, result)
+
+		expected := []string{"app.py", "main.go", "main_test.go", "test_app.py", "utils.go"}
+		sort.Strings(expected)
+
+		if len(relPaths) != len(expected) {
+			t.Errorf("Expected %d files, got %d", len(expected), len(relPaths))
+			t.Errorf("Expected: %v", expected)
+			t.Errorf("Got: %v", relPaths)
+		}
+	})
+
+	t.Run("case insensitive", func(t *testing.T) {
+		config := &Config{
+			Languages: []string{"go"},
+		}
+		scanner := NewScanner(config)
+
+		result, err := scanner.Scan(tempDir)
+		if err != nil {
+			t.Fatalf("Scan failed: %v", err)
+		}
+
+		relPaths := getRelativePaths(t, tempDir, result)
+
+		expected := []string{"main.go", "main_test.go", "utils.go"}
+		sort.Strings(expected)
+
+		if len(relPaths) != len(expected) {
+			t.Errorf("Expected %d files, got %d", len(expected), len(relPaths))
+			t.Errorf("Expected: %v", expected)
+			t.Errorf("Got: %v", relPaths)
+		}
+	})
+}
+
+func TestScannerExcludeLanguageFilter(t *testing.T) {
+	tempDir := t.TempDir()
+
+	files := map[string]string{
+		"main.go":  "package main",
+		"utils.go": "package main",
+		"app.py":   "print('hi')",
+		"index.js": "console.log('hi')",
+	}
+	createTestFiles(t, tempDir, files)
+
+	config := &Config{
+		ExcludeLangs: []string{"Go"},
+	}
+	scanner := NewScanner(config)
+
+	result, err := scanner.Scan(tempDir)
+	if err != nil {
+		t.Fatalf("Scan failed: %v", err)
+	}
+
+	relPaths := getRelativePaths(t, tempDir, result)
+
+	expected := []string{"app.py", "index.js"}
+	sort.Strings(expected)
+
+	if len(relPaths) != len(expected) {
+		t.Errorf("Expected %d files, got %d", len(expected), len(relPaths))
+		t.Errorf("Expected: %v", expected)
+		t.Errorf("Got: %v", relPaths)
+	}
+}
+
+func TestScannerCombinedFilters(t *testing.T) {
+	tempDir := t.TempDir()
+
+	files := map[string]string{
+		"main.go":       "package main",
+		"main_test.go":  "package main",
+		"utils.go":      "package main",
+		"utils_test.go": "package main",
+		"app.py":        "print('hi')",
+		"test_app.py":   "import unittest",
+		"index.js":      "console.log('hi')",
+	}
+	createTestFiles(t, tempDir, files)
+
+	// Filter: Go only, no tests
+	config := &Config{
+		Languages: []string{"Go"},
+		NoTests:   true,
+	}
+	scanner := NewScanner(config)
+
+	result, err := scanner.Scan(tempDir)
+	if err != nil {
+		t.Fatalf("Scan failed: %v", err)
+	}
+
+	relPaths := getRelativePaths(t, tempDir, result)
+
+	expected := []string{"main.go", "utils.go"}
+	sort.Strings(expected)
+
+	if len(relPaths) != len(expected) {
+		t.Errorf("Expected %d files, got %d", len(expected), len(relPaths))
+		t.Errorf("Expected: %v", expected)
+		t.Errorf("Got: %v", relPaths)
+	}
+}
+
 func TestScannerIncludeNonSourceFiles(t *testing.T) {
 	tempDir := t.TempDir()
 

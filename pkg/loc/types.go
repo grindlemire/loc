@@ -156,4 +156,8 @@ type Config struct {
 	Exclude      []string // Glob patterns to exclude
 	Combined     bool     // Combine src/test/other into single totals (disable breakdown)
 	All          bool     // Include non-source files (config, markdown, etc.)
+	NoTests      bool     // Exclude test files from counting
+	TestsOnly    bool     // Only include test files
+	Languages    []string // Include only files of specified languages (case-insensitive)
+	ExcludeLangs []string // Exclude files of specified languages (case-insensitive)
 }

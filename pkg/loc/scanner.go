@@ -171,7 +171,42 @@ func (s *Scanner) isIncluded(absPath string, relPath string) bool {
 		}
 	}
 
+	// Apply test file filters
+	if s.config.NoTests && isTestFile(absPath) {
+		return false
+	}
+	if s.config.TestsOnly && !isTestFile(absPath) {
+		return false
+	}
+
+	// Apply language filters
+	if len(s.config.Languages) > 0 || len(s.config.ExcludeLangs) > 0 {
+		lang := GetLanguageForFile(absPath)
+		langName := ""
+		if lang != nil {
+			langName = lang.Name
+		}
+
+		if len(s.config.Languages) > 0 && !matchesLanguage(langName, s.config.Languages) {
+			return false
+		}
+		if len(s.config.ExcludeLangs) > 0 && matchesLanguage(langName, s.config.ExcludeLangs) {
+			return false
+		}
+	}
+
 	return true
+}
+
+// matchesLanguage checks if a language name matches any in the list (case-insensitive)
+func matchesLanguage(langName string, languages []string) bool {
+	lower := strings.ToLower(langName)
+	for _, l := range languages {
+		if strings.ToLower(l) == lower {
+			return true
+		}
+	}
+	return false
 }
 
 // matchGlobPattern matches a glob pattern against a name or path

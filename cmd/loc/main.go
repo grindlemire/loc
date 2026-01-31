@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/alethi-co/loc/pkg/loc"
 	"github.com/mattn/go-isatty"
@@ -80,6 +81,22 @@ func main() {
 				Aliases: []string{"a"},
 				Usage:   "Include non-source files (config, markdown, etc.)",
 			},
+			&cli.BoolFlag{
+				Name:  "no-tests",
+				Usage: "Exclude test files from counting",
+			},
+			&cli.BoolFlag{
+				Name:  "tests-only",
+				Usage: "Only count test files",
+			},
+			&cli.StringSliceFlag{
+				Name:  "lang",
+				Usage: "Include only specified languages (comma-separated or repeated, e.g. --lang Go,Python)",
+			},
+			&cli.StringSliceFlag{
+				Name:  "exclude-lang",
+				Usage: "Exclude specified languages (comma-separated or repeated, e.g. --exclude-lang Go)",
+			},
 		},
 		Action: run,
 	}
@@ -97,6 +114,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		path = cmd.Args().Get(0)
 	}
 
+	// Validate mutually exclusive flags
+	if cmd.Bool("no-tests") && cmd.Bool("tests-only") {
+		return fmt.Errorf("--no-tests and --tests-only are mutually exclusive")
+	}
+
 	// Build config from flags
 	config := &loc.Config{
 		Workers:      int(cmd.Int("workers")),
@@ -110,6 +132,10 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		Exclude:      cmd.StringSlice("exclude"),
 		Combined:     cmd.Bool("combined"),
 		All:          cmd.Bool("all"),
+		NoTests:      cmd.Bool("no-tests"),
+		TestsOnly:    cmd.Bool("tests-only"),
+		Languages:    parseCommaSeparated(cmd.StringSlice("lang")),
+		ExcludeLangs: parseCommaSeparated(cmd.StringSlice("exclude-lang")),
 	}
 
 	// Validate output format
@@ -169,4 +195,20 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	fmt.Fprint(writer, output)
 
 	return nil
+}
+
+// parseCommaSeparated takes a string slice (from repeated flags) and splits
+// each element on commas, returning a flat list of trimmed, non-empty values.
+// This allows both --lang Go --lang Python and --lang Go,Python.
+func parseCommaSeparated(values []string) []string {
+	var result []string
+	for _, v := range values {
+		for _, part := range strings.Split(v, ",") {
+			trimmed := strings.TrimSpace(part)
+			if trimmed != "" {
+				result = append(result, trimmed)
+			}
+		}
+	}
+	return result
 }

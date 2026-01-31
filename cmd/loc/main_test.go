@@ -530,6 +530,22 @@ func buildCLICommand() *cli.Command {
 				Aliases: []string{"a"},
 				Usage:   "Include non-source files (config, markdown, etc.)",
 			},
+			&cli.BoolFlag{
+				Name:  "no-tests",
+				Usage: "Exclude test files from counting",
+			},
+			&cli.BoolFlag{
+				Name:  "tests-only",
+				Usage: "Only count test files",
+			},
+			&cli.StringSliceFlag{
+				Name:  "lang",
+				Usage: "Include only specified languages (comma-separated or repeated, e.g. --lang Go,Python)",
+			},
+			&cli.StringSliceFlag{
+				Name:  "exclude-lang",
+				Usage: "Exclude specified languages (comma-separated or repeated, e.g. --exclude-lang Go)",
+			},
 		},
 		Action: run,
 	}
@@ -956,5 +972,198 @@ func TestCLIHelpShowsNewFlags(t *testing.T) {
 	}
 	if !strings.Contains(output, "-a") {
 		t.Errorf("expected -a alias in help output, got: %s", output)
+	}
+}
+
+// TestCLINoTestsFlag tests the --no-tests flag
+func TestCLINoTestsFlag(t *testing.T) {
+	testDir := t.TempDir()
+
+	err := os.WriteFile(filepath.Join(testDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(filepath.Join(testDir, "main_test.go"), []byte("package main\n\nfunc TestMain() {}\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	cmd := buildCLICommand()
+	cmd.Writer = &buf
+
+	err = cmd.Run(context.Background(), []string{"loc", "--output", "raw", "--no-tests", testDir})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Files: 1") {
+		t.Errorf("expected 'Files: 1' with --no-tests, got: %s", output)
+	}
+}
+
+// TestCLITestsOnlyFlag tests the --tests-only flag
+func TestCLITestsOnlyFlag(t *testing.T) {
+	testDir := t.TempDir()
+
+	err := os.WriteFile(filepath.Join(testDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(filepath.Join(testDir, "main_test.go"), []byte("package main\n\nfunc TestMain() {}\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	cmd := buildCLICommand()
+	cmd.Writer = &buf
+
+	err = cmd.Run(context.Background(), []string{"loc", "--output", "raw", "--tests-only", testDir})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Files: 1") {
+		t.Errorf("expected 'Files: 1' with --tests-only, got: %s", output)
+	}
+}
+
+// TestCLINoTestsAndTestsOnlyMutuallyExclusive tests that --no-tests and --tests-only cannot be used together
+func TestCLINoTestsAndTestsOnlyMutuallyExclusive(t *testing.T) {
+	testDir := t.TempDir()
+
+	err := os.WriteFile(filepath.Join(testDir, "main.go"), []byte("package main\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	cmd := buildCLICommand()
+	cmd.Writer = &buf
+
+	err = cmd.Run(context.Background(), []string{"loc", "--no-tests", "--tests-only", testDir})
+	if err == nil {
+		t.Error("expected error when using --no-tests and --tests-only together")
+	}
+	if err != nil && !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("expected 'mutually exclusive' error, got: %v", err)
+	}
+}
+
+// TestCLILangFilter tests the --lang flag
+func TestCLILangFilter(t *testing.T) {
+	testDir := t.TempDir()
+
+	err := os.WriteFile(filepath.Join(testDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(filepath.Join(testDir, "app.py"), []byte("print('hi')\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(filepath.Join(testDir, "index.js"), []byte("console.log('hi')\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	cmd := buildCLICommand()
+	cmd.Writer = &buf
+
+	err = cmd.Run(context.Background(), []string{"loc", "--output", "raw", "--lang", "Go", testDir})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Files: 1") {
+		t.Errorf("expected 'Files: 1' with --lang Go, got: %s", output)
+	}
+}
+
+// TestCLILangFilterCommaSeparated tests --lang with comma-separated values
+func TestCLILangFilterCommaSeparated(t *testing.T) {
+	testDir := t.TempDir()
+
+	err := os.WriteFile(filepath.Join(testDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(filepath.Join(testDir, "app.py"), []byte("print('hi')\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(filepath.Join(testDir, "index.js"), []byte("console.log('hi')\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	cmd := buildCLICommand()
+	cmd.Writer = &buf
+
+	err = cmd.Run(context.Background(), []string{"loc", "--output", "raw", "--lang", "Go,Python", testDir})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Files: 2") {
+		t.Errorf("expected 'Files: 2' with --lang Go,Python, got: %s", output)
+	}
+}
+
+// TestCLIExcludeLangFilter tests the --exclude-lang flag
+func TestCLIExcludeLangFilter(t *testing.T) {
+	testDir := t.TempDir()
+
+	err := os.WriteFile(filepath.Join(testDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(filepath.Join(testDir, "app.py"), []byte("print('hi')\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(filepath.Join(testDir, "index.js"), []byte("console.log('hi')\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	cmd := buildCLICommand()
+	cmd.Writer = &buf
+
+	err = cmd.Run(context.Background(), []string{"loc", "--output", "raw", "--exclude-lang", "Go", testDir})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Files: 2") {
+		t.Errorf("expected 'Files: 2' with --exclude-lang Go, got: %s", output)
+	}
+}
+
+// TestCLIHelpShowsFilterFlags tests that help output includes the new filter flags
+func TestCLIHelpShowsFilterFlags(t *testing.T) {
+	var buf bytes.Buffer
+	cmd := buildCLICommand()
+	cmd.Writer = &buf
+
+	err := cmd.Run(context.Background(), []string{"loc", "--help"})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+	for _, flag := range []string{"--no-tests", "--tests-only", "--lang", "--exclude-lang"} {
+		if !strings.Contains(output, flag) {
+			t.Errorf("expected %q in help output", flag)
+		}
 	}
 }
