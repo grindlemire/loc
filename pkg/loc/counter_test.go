@@ -1388,3 +1388,33 @@ func TestFindCommentMarkerEscapeHandling(t *testing.T) {
 		})
 	}
 }
+
+func TestCountTracksErrors(t *testing.T) {
+	dir := t.TempDir()
+
+	// Make a valid file
+	validPath := filepath.Join(dir, "valid.go")
+	err := os.WriteFile(validPath, []byte("package main\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	config := &Config{Workers: 1}
+	counter := NewCounter(config)
+
+	// Count both files — the nonexistent one will error but not crash
+	summary, err := counter.Count([]string{validPath, "/nonexistent/file.go"})
+	if err != nil {
+		t.Fatalf("Count should not return error for per-file failures: %v", err)
+	}
+
+	// Valid file should be counted
+	if summary.TotalFiles != 1 {
+		t.Errorf("expected 1 file counted, got %d", summary.TotalFiles)
+	}
+
+	// Should track that 1 file had errors
+	if summary.Errors != 1 {
+		t.Errorf("expected 1 error tracked, got %d", summary.Errors)
+	}
+}

@@ -38,6 +38,7 @@ type Summary struct {
 	TotalCode     int
 	TotalBlanks   int
 	TotalComments int
+	Errors        int // Number of files that could not be read
 	ByLanguage    map[string]*LanguageStats
 	ByDirectory   map[string]*DirectoryStats
 	ByPackage     map[string]*PackageStats
