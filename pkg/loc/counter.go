@@ -109,17 +109,19 @@ func categorizeFile(path string) FileCategory {
 
 // Counter performs parallel line counting on source files
 type Counter struct {
-	config *Config
+	config  *Config
+	workers int
 }
 
 // NewCounter creates a new Counter with the provided configuration
 func NewCounter(config *Config) *Counter {
-	// Set default worker count to CPU count if not specified
-	if config.Workers <= 0 {
-		config.Workers = runtime.NumCPU()
+	workers := config.Workers
+	if workers <= 0 {
+		workers = runtime.NumCPU()
 	}
 	return &Counter{
-		config: config,
+		config:  config,
+		workers: workers,
 	}
 }
 
@@ -136,7 +138,7 @@ func (c *Counter) Count(files []string) (*Summary, error) {
 
 	// Start worker pool
 	var wg sync.WaitGroup
-	numWorkers := c.config.Workers
+	numWorkers := c.workers
 	if numWorkers > len(files) {
 		numWorkers = len(files)
 	}
