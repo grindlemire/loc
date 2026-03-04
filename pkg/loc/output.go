@@ -801,7 +801,10 @@ func formatJSON(summary *Summary, config *OutputConfig) string {
 		output.ByPackage = append(output.ByPackage, pkgStats)
 	}
 
-	data, _ := json.MarshalIndent(output, "", "  ")
+	data, err := json.MarshalIndent(output, "", "  ")
+	if err != nil {
+		return fmt.Sprintf(`{"error": "failed to marshal output: %s"}`+"\n", err)
+	}
 	return string(data) + "\n"
 }
 

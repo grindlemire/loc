@@ -11,8 +11,8 @@ func TestNewCounter(t *testing.T) {
 	t.Run("sets default workers", func(t *testing.T) {
 		config := &Config{}
 		counter := NewCounter(config)
-		if counter.config.Workers <= 0 {
-			t.Error("expected Workers to be set to a positive value")
+		if counter.workers <= 0 {
+			t.Error("expected workers to be set to a positive value")
 		}
 	})
 
@@ -1416,5 +1416,14 @@ func TestCountTracksErrors(t *testing.T) {
 	// Should track that 1 file had errors
 	if summary.Errors != 1 {
 		t.Errorf("expected 1 error tracked, got %d", summary.Errors)
+	}
+}
+
+func TestNewCounterDoesNotMutateConfig(t *testing.T) {
+	config := &Config{Workers: 0}
+	_ = NewCounter(config)
+
+	if config.Workers != 0 {
+		t.Errorf("NewCounter mutated config.Workers: got %d, want 0", config.Workers)
 	}
 }
