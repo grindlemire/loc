@@ -1345,8 +1345,6 @@ func TestFileCategoryConstants(t *testing.T) {
 }
 
 func TestFindCommentMarkerEscapeHandling(t *testing.T) {
-	c := &Counter{}
-
 	tests := []struct {
 		name     string
 		line     string
@@ -1381,7 +1379,7 @@ func TestFindCommentMarkerEscapeHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := c.findCommentMarker(tt.line, tt.marker)
+			result := findCommentMarker(tt.line, tt.marker)
 			if result != tt.expected {
 				t.Errorf("findCommentMarker(%q, %q) = %d, want %d", tt.line, tt.marker, result, tt.expected)
 			}

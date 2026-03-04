@@ -197,7 +197,7 @@ func (c *Counter) countFile(path string) (*FileResult, error) {
 	defer file.Close()
 
 	// Check if file is binary by looking for null bytes in first 8KB
-	isBinary, err := c.isBinaryFile(file)
+	isBinary, err := isBinaryFile(file)
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +240,7 @@ func (c *Counter) countFile(path string) (*FileResult, error) {
 }
 
 // isBinaryFile checks if a file is binary by looking for null bytes in the first 8KB
-func (c *Counter) isBinaryFile(file *os.File) (bool, error) {
+func isBinaryFile(file *os.File) (bool, error) {
 	buf := make([]byte, binaryCheckSize)
 	n, err := file.Read(buf)
 	if err != nil && err != io.EOF {
@@ -282,12 +282,12 @@ func (c *Counter) countLinesStreaming(file *os.File, lang *Language, result *Fil
 						lastCharWasCR = false
 						continue
 					}
-					c.processLine(lineBuilder.String(), lang, result, &inBlockComment)
+					processLine(lineBuilder.String(), lang, result, &inBlockComment)
 					lineBuilder.Reset()
 					lastCharWasCR = false
 				} else if ch == '\r' {
 					// CR - could be CRLF or old Mac CR-only
-					c.processLine(lineBuilder.String(), lang, result, &inBlockComment)
+					processLine(lineBuilder.String(), lang, result, &inBlockComment)
 					lineBuilder.Reset()
 					lastCharWasCR = true
 				} else {
@@ -311,7 +311,7 @@ func (c *Counter) countLinesStreaming(file *os.File, lang *Language, result *Fil
 	// Handle file without trailing newline
 	if lineBuilder.Len() > 0 || lastCharWasCR {
 		if lineBuilder.Len() > 0 {
-			c.processLine(lineBuilder.String(), lang, result, &inBlockComment)
+			processLine(lineBuilder.String(), lang, result, &inBlockComment)
 		}
 	} else if !hasContent {
 		// Empty file - no lines to count
@@ -322,7 +322,7 @@ func (c *Counter) countLinesStreaming(file *os.File, lang *Language, result *Fil
 }
 
 // processLine classifies and counts a single line
-func (c *Counter) processLine(line string, lang *Language, result *FileResult, inBlockComment *bool) {
+func processLine(line string, lang *Language, result *FileResult, inBlockComment *bool) {
 	result.Lines++
 
 	trimmed := strings.TrimSpace(line)
@@ -331,7 +331,7 @@ func (c *Counter) processLine(line string, lang *Language, result *FileResult, i
 		return
 	}
 
-	lineType := c.classifyLine(trimmed, lang, inBlockComment)
+	lineType := classifyLine(trimmed, lang, inBlockComment)
 
 	switch lineType {
 	case lineTypeBlank:
@@ -357,7 +357,7 @@ const (
 )
 
 // classifyLine determines the type of a non-empty line
-func (c *Counter) classifyLine(trimmed string, lang *Language, inBlockComment *bool) lineType {
+func classifyLine(trimmed string, lang *Language, inBlockComment *bool) lineType {
 	if lang == nil {
 		// Unknown language - treat all non-blank as code
 		return lineTypeCode
@@ -371,7 +371,7 @@ func (c *Counter) classifyLine(trimmed string, lang *Language, inBlockComment *b
 				*inBlockComment = false
 				// Check if there's code after the block comment end
 				afterComment := strings.TrimSpace(trimmed[endIdx+len(lang.BlockCommentEnd):])
-				if afterComment != "" && !c.isLineComment(afterComment, lang) {
+				if afterComment != "" && !isLineComment(afterComment, lang) {
 					return lineTypeMixed
 				}
 			}
@@ -381,7 +381,7 @@ func (c *Counter) classifyLine(trimmed string, lang *Language, inBlockComment *b
 
 	// Check for block comment start
 	if lang.BlockCommentStart != "" {
-		if startIdx := c.findBlockCommentStart(trimmed, lang); startIdx >= 0 {
+		if startIdx := findBlockCommentStart(trimmed, lang); startIdx >= 0 {
 			beforeComment := strings.TrimSpace(trimmed[:startIdx])
 
 			// Check if block comment ends on the same line
@@ -406,7 +406,7 @@ func (c *Counter) classifyLine(trimmed string, lang *Language, inBlockComment *b
 
 	// Check for single-line comment
 	if lang.LineComment != "" {
-		if commentIdx := c.findLineComment(trimmed, lang); commentIdx >= 0 {
+		if commentIdx := findLineComment(trimmed, lang); commentIdx >= 0 {
 			if commentIdx == 0 {
 				return lineTypeComment
 			}
@@ -420,25 +420,25 @@ func (c *Counter) classifyLine(trimmed string, lang *Language, inBlockComment *b
 }
 
 // findBlockCommentStart finds the start of a block comment, avoiding false positives in strings
-func (c *Counter) findBlockCommentStart(line string, lang *Language) int {
+func findBlockCommentStart(line string, lang *Language) int {
 	if lang.BlockCommentStart == "" {
 		return -1
 	}
 
-	return c.findCommentMarker(line, lang.BlockCommentStart)
+	return findCommentMarker(line, lang.BlockCommentStart)
 }
 
 // findLineComment finds a line comment marker, avoiding false positives in strings
-func (c *Counter) findLineComment(line string, lang *Language) int {
+func findLineComment(line string, lang *Language) int {
 	if lang.LineComment == "" {
 		return -1
 	}
 
-	return c.findCommentMarker(line, lang.LineComment)
+	return findCommentMarker(line, lang.LineComment)
 }
 
 // findCommentMarker finds a comment marker in a line, avoiding false positives in strings
-func (c *Counter) findCommentMarker(line, marker string) int {
+func findCommentMarker(line, marker string) int {
 	// Special case: if marker is a quote-based marker (like """), check at position 0 first
 	// before any string state tracking confuses us
 	if strings.HasPrefix(line, marker) {
@@ -533,7 +533,7 @@ func (c *Counter) findCommentMarker(line, marker string) int {
 }
 
 // isLineComment checks if a line is a complete line comment
-func (c *Counter) isLineComment(trimmed string, lang *Language) bool {
+func isLineComment(trimmed string, lang *Language) bool {
 	if lang == nil || lang.LineComment == "" {
 		return false
 	}
