@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 // Buffer pool for efficient file reading
@@ -131,6 +132,7 @@ func (c *Counter) Count(files []string) (*Summary, error) {
 	// Create channels for work distribution and result collection
 	jobs := make(chan string, len(files))
 	results := make(chan *FileResult, len(files))
+	var errorCount atomic.Int64
 
 	// Start worker pool
 	var wg sync.WaitGroup
@@ -146,8 +148,7 @@ func (c *Counter) Count(files []string) (*Summary, error) {
 			for path := range jobs {
 				result, err := c.countFile(path)
 				if err != nil {
-					// Log error but continue processing other files.
-					// File-level errors (permission denied, etc.) are non-fatal.
+					errorCount.Add(1)
 					continue
 				}
 				if result != nil {
@@ -174,6 +175,8 @@ func (c *Counter) Count(files []string) (*Summary, error) {
 	for result := range results {
 		summary.addResult(result)
 	}
+
+	summary.Errors = int(errorCount.Load())
 
 	return summary, nil
 }
