@@ -208,7 +208,7 @@ func (g *GitIgnore) ShouldIgnore(path string) bool {
 	path = strings.TrimPrefix(path, "./")
 
 	// Check built-in exclusions first
-	if g.shouldIgnoreBuiltin(path) {
+	if shouldIgnoreBuiltin(path) {
 		return true
 	}
 
@@ -223,8 +223,17 @@ func (g *GitIgnore) ShouldIgnore(path string) bool {
 	return ignored
 }
 
+// ShouldIgnoreBuiltin checks if a path matches built-in exclusions
+// (binary files, lock files, excluded directories, etc.)
+// This can be called without a GitIgnore instance.
+func ShouldIgnoreBuiltin(path string) bool {
+	path = filepath.ToSlash(path)
+	path = strings.TrimPrefix(path, "./")
+	return shouldIgnoreBuiltin(path)
+}
+
 // shouldIgnoreBuiltin checks if a path matches built-in exclusions
-func (g *GitIgnore) shouldIgnoreBuiltin(path string) bool {
+func shouldIgnoreBuiltin(path string) bool {
 	// Get the base name and extension
 	base := filepath.Base(path)
 	ext := strings.ToLower(filepath.Ext(path))

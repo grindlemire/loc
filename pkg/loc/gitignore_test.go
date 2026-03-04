@@ -473,3 +473,27 @@ temp/
 		})
 	}
 }
+
+func TestShouldIgnoreBuiltin(t *testing.T) {
+	tests := []struct {
+		path     string
+		expected bool
+	}{
+		{"vendor/foo.go", true},
+		{"node_modules/index.js", true},
+		{"go.sum", true},
+		{"foo.exe", true},
+		{"main.min.js", true},
+		{"main.pb.go", true},
+		{"src/main.go", false},
+		{"lib/utils.py", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			if got := ShouldIgnoreBuiltin(tt.path); got != tt.expected {
+				t.Errorf("ShouldIgnoreBuiltin(%q) = %v, want %v", tt.path, got, tt.expected)
+			}
+		})
+	}
+}
