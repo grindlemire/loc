@@ -1369,3 +1369,29 @@ func TestOutputConfigFields(t *testing.T) {
 		t.Error("ShowAll should be true after setting")
 	}
 }
+
+func TestCodeOnlyRawOutput(t *testing.T) {
+	summary := createTestSummary()
+
+	config := &OutputConfig{
+		Format:   FormatRaw,
+		CodeOnly: true,
+	}
+
+	output := FormatOutput(summary, config)
+
+	// CodeOnly should suppress Blanks and Comments lines
+	if strings.Contains(output, "Blanks:") {
+		t.Errorf("code-only output should not contain 'Blanks:', got: %s", output)
+	}
+	if strings.Contains(output, "Comments:") {
+		t.Errorf("code-only output should not contain 'Comments:', got: %s", output)
+	}
+	// But should still show Files and Code
+	if !strings.Contains(output, "Files:") {
+		t.Errorf("code-only output should contain 'Files:', got: %s", output)
+	}
+	if !strings.Contains(output, "Code:") {
+		t.Errorf("code-only output should contain 'Code:', got: %s", output)
+	}
+}

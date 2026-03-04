@@ -28,6 +28,7 @@ type OutputConfig struct {
 	NoColor    bool
 	Combined   bool // When true, don't show src/test/other breakdown
 	ShowAll    bool // When true, include "other" files in the breakdown
+	CodeOnly   bool // When true, suppress Blanks and Comments columns/fields
 }
 
 // FormatOutput formats a Summary according to the given OutputConfig
@@ -189,15 +190,20 @@ func formatSummaryTable(summary *Summary, config *OutputConfig) string {
 
 	// When --combined is set, show simple table without breakdown
 	if config.Combined {
+		headers := []string{"Files", "Code"}
+		row := []string{
+			formatNumber(summary.TotalFiles),
+			formatNumber(summary.TotalCode),
+		}
+		if !config.CodeOnly {
+			headers = append(headers, "Comments")
+			row = append(row, formatNumber(summary.TotalComments))
+		}
 		t := table.New().
 			Border(lipgloss.RoundedBorder()).
 			BorderStyle(styles.Border).
-			Headers("Files", "Code", "Comments").
-			Row(
-				formatNumber(summary.TotalFiles),
-				formatNumber(summary.TotalCode),
-				formatNumber(summary.TotalComments),
-			)
+			Headers(headers...).
+			Row(row...)
 
 		// Style the header row with accent color
 		t.StyleFunc(func(row, col int) lipgloss.Style {
@@ -216,29 +222,39 @@ func formatSummaryTable(summary *Summary, config *OutputConfig) string {
 	var rows [][]string
 
 	// Total row
-	rows = append(rows, []string{
+	totalRow := []string{
 		"Total",
 		formatNumber(summary.TotalFiles),
 		formatNumber(summary.TotalCode),
-		formatNumber(summary.TotalComments),
-	})
+	}
+	if !config.CodeOnly {
+		totalRow = append(totalRow, formatNumber(summary.TotalComments))
+	}
+	rows = append(rows, totalRow)
 
 	// Add sub-rows with elbow prefixes
 	subRows := renderSubRows(summary, config.ShowAll, config.NoColor)
 	for _, sr := range subRows {
-		rows = append(rows, []string{
+		row := []string{
 			sr.label,
 			formatNumber(sr.files),
 			formatNumber(sr.code),
-			formatNumber(sr.comments),
-		})
+		}
+		if !config.CodeOnly {
+			row = append(row, formatNumber(sr.comments))
+		}
+		rows = append(rows, row)
 	}
 
 	// Create the table with rounded borders
+	headers := []string{"", "Files", "Code"}
+	if !config.CodeOnly {
+		headers = append(headers, "Comments")
+	}
 	t := table.New().
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(styles.Border).
-		Headers("", "Files", "Code", "Comments")
+		Headers(headers...)
 
 	// Add all rows
 	for _, row := range rows {
@@ -335,15 +351,18 @@ func formatBreakdownTable(
 		}
 
 		// Add main row
+		mainRow := []string{
+			entry.Label,
+			formatNumber(stats.Files),
+			formatNumber(stats.Code),
+		}
+		if !config.CodeOnly {
+			mainRow = append(mainRow, formatNumber(stats.Comments))
+		}
+		mainRow = append(mainRow, fmt.Sprintf("%.1f%%", pct))
 		rows = append(rows, breakdownRow{
 			rowType: breakdownRowMain,
-			data: []string{
-				entry.Label,
-				formatNumber(stats.Files),
-				formatNumber(stats.Code),
-				formatNumber(stats.Comments),
-				fmt.Sprintf("%.1f%%", pct),
-			},
+			data:    mainRow,
 		})
 
 		// Add sub-rows if not combined
@@ -363,15 +382,18 @@ func formatBreakdownTable(
 			if totalCode > 0 {
 				srcPct = float64(stats.SrcCode) / float64(totalCode) * 100
 			}
+			srcRow := []string{
+				srcPrefix + "src",
+				formatNumber(stats.SrcFiles),
+				formatNumber(stats.SrcCode),
+			}
+			if !config.CodeOnly {
+				srcRow = append(srcRow, formatNumber(stats.SrcComments))
+			}
+			srcRow = append(srcRow, fmt.Sprintf("%.1f%%", srcPct))
 			rows = append(rows, breakdownRow{
 				rowType: breakdownRowSub,
-				data: []string{
-					srcPrefix + "src",
-					formatNumber(stats.SrcFiles),
-					formatNumber(stats.SrcCode),
-					formatNumber(stats.SrcComments),
-					fmt.Sprintf("%.1f%%", srcPct),
-				},
+				data:    srcRow,
 			})
 
 			// Test sub-row
@@ -379,15 +401,18 @@ func formatBreakdownTable(
 			if totalCode > 0 {
 				testPct = float64(stats.TestCode) / float64(totalCode) * 100
 			}
+			testRow := []string{
+				testPrefix + "test",
+				formatNumber(stats.TestFiles),
+				formatNumber(stats.TestCode),
+			}
+			if !config.CodeOnly {
+				testRow = append(testRow, formatNumber(stats.TestComments))
+			}
+			testRow = append(testRow, fmt.Sprintf("%.1f%%", testPct))
 			rows = append(rows, breakdownRow{
 				rowType: breakdownRowSub,
-				data: []string{
-					testPrefix + "test",
-					formatNumber(stats.TestFiles),
-					formatNumber(stats.TestCode),
-					formatNumber(stats.TestComments),
-					fmt.Sprintf("%.1f%%", testPct),
-				},
+				data:    testRow,
 			})
 
 			// Other sub-row (only when --all flag is set and there are other files)
@@ -396,37 +421,48 @@ func formatBreakdownTable(
 				if totalCode > 0 {
 					otherPct = float64(stats.OtherCode) / float64(totalCode) * 100
 				}
+				otherRow := []string{
+					elbowLast + "other",
+					formatNumber(stats.OtherFiles),
+					formatNumber(stats.OtherCode),
+				}
+				if !config.CodeOnly {
+					otherRow = append(otherRow, formatNumber(stats.OtherComments))
+				}
+				otherRow = append(otherRow, fmt.Sprintf("%.1f%%", otherPct))
 				rows = append(rows, breakdownRow{
 					rowType: breakdownRowSub,
-					data: []string{
-						elbowLast + "other",
-						formatNumber(stats.OtherFiles),
-						formatNumber(stats.OtherCode),
-						formatNumber(stats.OtherComments),
-						fmt.Sprintf("%.1f%%", otherPct),
-					},
+					data:    otherRow,
 				})
 			}
 		}
 	}
 
 	// Add totals row
+	totalsRow := []string{
+		"Total",
+		formatNumber(totalFiles),
+		formatNumber(totalCodeSum),
+	}
+	if !config.CodeOnly {
+		totalsRow = append(totalsRow, formatNumber(totalComments))
+	}
+	totalsRow = append(totalsRow, "100.0%")
 	rows = append(rows, breakdownRow{
 		rowType: breakdownRowTotal,
-		data: []string{
-			"Total",
-			formatNumber(totalFiles),
-			formatNumber(totalCodeSum),
-			formatNumber(totalComments),
-			"100.0%",
-		},
+		data:    totalsRow,
 	})
 
 	// Create the table with rounded borders
+	bdHeaders := []string{headerLabel, "Files", "Code"}
+	if !config.CodeOnly {
+		bdHeaders = append(bdHeaders, "Comments")
+	}
+	bdHeaders = append(bdHeaders, "%")
 	t := table.New().
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(styles.Border).
-		Headers(headerLabel, "Files", "Code", "Comments", "%")
+		Headers(bdHeaders...)
 
 	// Add all rows
 	for _, row := range rows {
@@ -780,8 +816,10 @@ func formatRaw(summary *Summary, config *OutputConfig) string {
 	sb.WriteString(fmt.Sprintf("Files: %d\n", summary.TotalFiles))
 	sb.WriteString(fmt.Sprintf("Lines: %d\n", summary.TotalLines))
 	sb.WriteString(fmt.Sprintf("Code: %d\n", summary.TotalCode))
-	sb.WriteString(fmt.Sprintf("Blanks: %d\n", summary.TotalBlanks))
-	sb.WriteString(fmt.Sprintf("Comments: %d\n", summary.TotalComments))
+	if !config.CodeOnly {
+		sb.WriteString(fmt.Sprintf("Blanks: %d\n", summary.TotalBlanks))
+		sb.WriteString(fmt.Sprintf("Comments: %d\n", summary.TotalComments))
+	}
 
 	// Add src/test/other breakdown if not combined
 	if !config.Combined {
