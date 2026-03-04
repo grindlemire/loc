@@ -448,9 +448,15 @@ func (c *Counter) findCommentMarker(line, marker string) int {
 	inTripleDoubleQuote := false
 	inTripleSingleQuote := false
 
+	escaped := false
 	for i := 0; i < len(line); i++ {
 		// Check for escape sequences
-		if i > 0 && line[i-1] == '\\' {
+		if escaped {
+			escaped = false
+			continue
+		}
+		if line[i] == '\\' && (inSingleQuote || inDoubleQuote) {
+			escaped = true
 			continue
 		}
 

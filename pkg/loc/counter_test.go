@@ -1343,3 +1343,48 @@ func TestFileCategoryConstants(t *testing.T) {
 		t.Errorf("expected FileCategoryOther=2, got %d", FileCategoryOther)
 	}
 }
+
+func TestFindCommentMarkerEscapeHandling(t *testing.T) {
+	c := &Counter{}
+
+	tests := []struct {
+		name     string
+		line     string
+		marker   string
+		expected int
+	}{
+		{
+			name:     "double backslash before closing quote then comment",
+			line:     `x = "hello\\" // comment`,
+			marker:   "//",
+			expected: 14, // the // after the string
+		},
+		{
+			name:     "single escaped quote inside string no comment",
+			line:     `x = "he\"llo"`,
+			marker:   "//",
+			expected: -1,
+		},
+		{
+			name:     "escaped backslash at end of string then comment",
+			line:     `fmt.Println("path\\") // trailing`,
+			marker:   "//",
+			expected: 22,
+		},
+		{
+			name:     "triple backslash before quote (backslash + escaped quote)",
+			line:     `x = "test\\\"still" // comment`,
+			marker:   "//",
+			expected: 20,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := c.findCommentMarker(tt.line, tt.marker)
+			if result != tt.expected {
+				t.Errorf("findCommentMarker(%q, %q) = %d, want %d", tt.line, tt.marker, result, tt.expected)
+			}
+		})
+	}
+}
