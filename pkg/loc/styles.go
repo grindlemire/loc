@@ -13,16 +13,10 @@ const (
 
 	// Text colors
 	HeaderText = lipgloss.Color("#F8FAFC") // Bright white for headers
-	DimText    = lipgloss.Color("#94A3B8") // Slate for secondary info
 	NormalText = lipgloss.Color("#E2E8F0") // Light gray for standard text
 
 	// Table colors
 	BorderColor = lipgloss.Color("#6366F1") // Vibrant indigo border
-	RowAltBg    = lipgloss.Color("#1E1B4B") // Deep indigo background (optional)
-
-	// Additional accent colors for variety
-	SuccessColor = lipgloss.Color("#22C55E") // Vibrant green
-	WarningColor = lipgloss.Color("#F59E0B") // Vibrant amber
 
 	// Sub-row colors
 	SubRowDim = lipgloss.Color("#64748B") // Dimmer color for sub-row elements
@@ -45,9 +39,6 @@ const (
 // Styles holds all the lipgloss styles used for rendering output.
 // It supports both colored and no-color modes via the renderer.
 type Styles struct {
-	// Header style for section titles (e.g., "LOC - Lines of Code Counter")
-	Header lipgloss.Style
-
 	// SectionTitle style for table section headers (e.g., "By Language")
 	SectionTitle lipgloss.Style
 
@@ -57,9 +48,6 @@ type Styles struct {
 	// Number style for numeric values
 	Number lipgloss.Style
 
-	// DimLabel style for secondary/muted labels
-	DimLabel lipgloss.Style
-
 	// TotalLabel style for the "Total:" label in summary
 	TotalLabel lipgloss.Style
 
@@ -68,16 +56,6 @@ type Styles struct {
 
 	// Border style configuration for tables
 	Border lipgloss.Style
-
-	// RowEven style for even rows (optional alternating background)
-	RowEven lipgloss.Style
-
-	// RowOdd style for odd rows
-	RowOdd lipgloss.Style
-
-	// SubRowPrefix style for tree-style elbow characters (├─, └─)
-	// Should be dimmer than main row text
-	SubRowPrefix lipgloss.Style
 
 	// SubRowLabel style for sub-row labels ("src", "test", "other")
 	// Slightly indented appearance with dim styling
@@ -93,11 +71,6 @@ func NewStyles(r *lipgloss.Renderer) *Styles {
 	}
 
 	return &Styles{
-		Header: r.NewStyle().
-			Bold(true).
-			Foreground(HeaderText).
-			MarginBottom(1),
-
 		SectionTitle: r.NewStyle().
 			Bold(true).
 			Foreground(AccentColor),
@@ -107,9 +80,6 @@ func NewStyles(r *lipgloss.Renderer) *Styles {
 
 		Number: r.NewStyle().
 			Foreground(NormalText),
-
-		DimLabel: r.NewStyle().
-			Foreground(DimText),
 
 		TotalLabel: r.NewStyle().
 			Bold(true).
@@ -121,14 +91,6 @@ func NewStyles(r *lipgloss.Renderer) *Styles {
 
 		Border: r.NewStyle().
 			Foreground(BorderColor),
-
-		RowEven: r.NewStyle().
-			Background(RowAltBg),
-
-		RowOdd: r.NewStyle(),
-
-		SubRowPrefix: r.NewStyle().
-			Foreground(SubRowDim),
 
 		SubRowLabel: r.NewStyle().
 			Foreground(SubRowDim).
@@ -148,43 +110,4 @@ func NoColorStyles() *Styles {
 	r := lipgloss.NewRenderer(nil)
 	r.SetColorProfile(termenv.Ascii)
 	return NewStyles(r)
-}
-
-// TableStyleConfig holds configuration for rendering tables with lipgloss.
-type TableStyleConfig struct {
-	// HeaderStyle is applied to the header row
-	HeaderStyle lipgloss.Style
-
-	// CellStyle is the default style for table cells
-	CellStyle lipgloss.Style
-
-	// BorderStyle is applied to table borders
-	BorderStyle lipgloss.Style
-
-	// UseAlternatingRows enables alternating row backgrounds
-	UseAlternatingRows bool
-
-	// EvenRowStyle is applied to even rows when UseAlternatingRows is true
-	EvenRowStyle lipgloss.Style
-
-	// OddRowStyle is applied to odd rows when UseAlternatingRows is true
-	OddRowStyle lipgloss.Style
-}
-
-// NewTableStyleConfig creates a TableStyleConfig from the given Styles.
-func NewTableStyleConfig(s *Styles) *TableStyleConfig {
-	return &TableStyleConfig{
-		HeaderStyle:        s.Label,
-		CellStyle:          s.Number,
-		BorderStyle:        s.Border,
-		UseAlternatingRows: false, // Disabled by default for cleaner look
-		EvenRowStyle:       s.RowEven,
-		OddRowStyle:        s.RowOdd,
-	}
-}
-
-// WithAlternatingRows returns a copy of the config with alternating rows enabled.
-func (c *TableStyleConfig) WithAlternatingRows(enabled bool) *TableStyleConfig {
-	c.UseAlternatingRows = enabled
-	return c
 }
