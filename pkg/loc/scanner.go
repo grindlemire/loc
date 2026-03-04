@@ -157,9 +157,7 @@ func (s *Scanner) isIncluded(absPath string, relPath string) bool {
 			return false
 		}
 	} else {
-		// If no gitignore loaded, still check built-in exclusions
-		g := &GitIgnore{patterns: []*Pattern{}}
-		if g.ShouldIgnore(relPath) {
+		if ShouldIgnoreBuiltin(relPath) {
 			return false
 		}
 	}
