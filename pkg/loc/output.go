@@ -577,26 +577,26 @@ type jsonOutput struct {
 }
 
 type jsonTotal struct {
-	Files    int `json:"files"`
-	Lines    int `json:"lines"`
-	Code     int `json:"code"`
-	Blanks   int `json:"blanks"`
-	Comments int `json:"comments"`
+	Files    int  `json:"files"`
+	Lines    int  `json:"lines"`
+	Code     int  `json:"code"`
+	Blanks   *int `json:"blanks,omitempty"`
+	Comments *int `json:"comments,omitempty"`
 }
 
 type jsonTestStats struct {
-	Files    int `json:"files"`
-	Lines    int `json:"lines"`
-	Code     int `json:"code"`
-	Blanks   int `json:"blanks"`
-	Comments int `json:"comments"`
+	Files    int  `json:"files"`
+	Lines    int  `json:"lines"`
+	Code     int  `json:"code"`
+	Blanks   *int `json:"blanks,omitempty"`
+	Comments *int `json:"comments,omitempty"`
 }
 
 // jsonSubStats represents sub-stats for src/test/other in breakdown entries
 type jsonSubStats struct {
-	Files    int `json:"files"`
-	Code     int `json:"code"`
-	Comments int `json:"comments"`
+	Files    int  `json:"files"`
+	Code     int  `json:"code"`
+	Comments *int `json:"comments,omitempty"`
 }
 
 type jsonLanguageStats struct {
@@ -604,8 +604,8 @@ type jsonLanguageStats struct {
 	Files    int           `json:"files"`
 	Lines    int           `json:"lines"`
 	Code     int           `json:"code"`
-	Blanks   int           `json:"blanks"`
-	Comments int           `json:"comments"`
+	Blanks   *int          `json:"blanks,omitempty"`
+	Comments *int          `json:"comments,omitempty"`
 	Src      *jsonSubStats `json:"src,omitempty"`
 	Test     *jsonSubStats `json:"test,omitempty"`
 	Other    *jsonSubStats `json:"other,omitempty"`
@@ -616,8 +616,8 @@ type jsonDirectoryStats struct {
 	Files    int           `json:"files"`
 	Lines    int           `json:"lines"`
 	Code     int           `json:"code"`
-	Blanks   int           `json:"blanks"`
-	Comments int           `json:"comments"`
+	Blanks   *int          `json:"blanks,omitempty"`
+	Comments *int          `json:"comments,omitempty"`
 	Src      *jsonSubStats `json:"src,omitempty"`
 	Test     *jsonSubStats `json:"test,omitempty"`
 	Other    *jsonSubStats `json:"other,omitempty"`
@@ -628,11 +628,20 @@ type jsonPackageStats struct {
 	Files    int           `json:"files"`
 	Lines    int           `json:"lines"`
 	Code     int           `json:"code"`
-	Blanks   int           `json:"blanks"`
-	Comments int           `json:"comments"`
+	Blanks   *int          `json:"blanks,omitempty"`
+	Comments *int          `json:"comments,omitempty"`
 	Src      *jsonSubStats `json:"src,omitempty"`
 	Test     *jsonSubStats `json:"test,omitempty"`
 	Other    *jsonSubStats `json:"other,omitempty"`
+}
+
+// intPtr returns a pointer to v, or nil if include is false.
+// Used to conditionally include blanks/comments fields in JSON when CodeOnly is off.
+func intPtr(v int, include bool) *int {
+	if !include {
+		return nil
+	}
+	return &v
 }
 
 // buildJSONSubStats generates the sub-stats for a BaseStats entry
@@ -640,21 +649,22 @@ func buildJSONSubStats(stats *BaseStats, config *OutputConfig) (src, test, other
 	if config.Combined {
 		return nil, nil, nil
 	}
+	includeComments := !config.CodeOnly
 	src = &jsonSubStats{
 		Files:    stats.SrcFiles,
 		Code:     stats.SrcCode,
-		Comments: stats.SrcComments,
+		Comments: intPtr(stats.SrcComments, includeComments),
 	}
 	test = &jsonSubStats{
 		Files:    stats.TestFiles,
 		Code:     stats.TestCode,
-		Comments: stats.TestComments,
+		Comments: intPtr(stats.TestComments, includeComments),
 	}
 	if config.ShowAll && stats.OtherFiles > 0 {
 		other = &jsonSubStats{
 			Files:    stats.OtherFiles,
 			Code:     stats.OtherCode,
-			Comments: stats.OtherComments,
+			Comments: intPtr(stats.OtherComments, includeComments),
 		}
 	}
 	return src, test, other
@@ -665,13 +675,15 @@ func buildJSONSubStats(stats *BaseStats, config *OutputConfig) (src, test, other
 // When combined: omits src/test/other fields
 // When showAll: includes "other" stats
 func formatJSON(summary *Summary, config *OutputConfig) string {
+	inc := !config.CodeOnly // whether to include blanks/comments
+
 	output := jsonOutput{
 		Total: jsonTotal{
 			Files:    summary.TotalFiles,
 			Lines:    summary.TotalLines,
 			Code:     summary.TotalCode,
-			Blanks:   summary.TotalBlanks,
-			Comments: summary.TotalComments,
+			Blanks:   intPtr(summary.TotalBlanks, inc),
+			Comments: intPtr(summary.TotalComments, inc),
 		},
 		ByLanguage:  make([]jsonLanguageStats, 0, len(summary.ByLanguage)),
 		ByDirectory: make([]jsonDirectoryStats, 0, len(summary.ByDirectory)),
@@ -684,15 +696,15 @@ func formatJSON(summary *Summary, config *OutputConfig) string {
 			Files:    summary.SrcFiles,
 			Lines:    summary.SrcLines,
 			Code:     summary.SrcCode,
-			Blanks:   summary.SrcBlanks,
-			Comments: summary.SrcComments,
+			Blanks:   intPtr(summary.SrcBlanks, inc),
+			Comments: intPtr(summary.SrcComments, inc),
 		}
 		output.Test = &jsonTestStats{
 			Files:    summary.TestFiles,
 			Lines:    summary.TestLines,
 			Code:     summary.TestCode,
-			Blanks:   summary.TestBlanks,
-			Comments: summary.TestComments,
+			Blanks:   intPtr(summary.TestBlanks, inc),
+			Comments: intPtr(summary.TestComments, inc),
 		}
 		// Include "other" only when --all is set and there are other files
 		if config.ShowAll && hasOtherFiles(summary) {
@@ -700,8 +712,8 @@ func formatJSON(summary *Summary, config *OutputConfig) string {
 				Files:    summary.OtherFiles,
 				Lines:    summary.OtherLines,
 				Code:     summary.OtherCode,
-				Blanks:   summary.OtherBlanks,
-				Comments: summary.OtherComments,
+				Blanks:   intPtr(summary.OtherBlanks, inc),
+				Comments: intPtr(summary.OtherComments, inc),
 			}
 		}
 	}
@@ -720,8 +732,8 @@ func formatJSON(summary *Summary, config *OutputConfig) string {
 			Files:    stats.Files,
 			Lines:    stats.Lines,
 			Code:     stats.Code,
-			Blanks:   stats.Blanks,
-			Comments: stats.Comments,
+			Blanks:   intPtr(stats.Blanks, inc),
+			Comments: intPtr(stats.Comments, inc),
 			Src:      src,
 			Test:     test,
 			Other:    other,
@@ -742,8 +754,8 @@ func formatJSON(summary *Summary, config *OutputConfig) string {
 			Files:    stats.Files,
 			Lines:    stats.Lines,
 			Code:     stats.Code,
-			Blanks:   stats.Blanks,
-			Comments: stats.Comments,
+			Blanks:   intPtr(stats.Blanks, inc),
+			Comments: intPtr(stats.Comments, inc),
 			Src:      src,
 			Test:     test,
 			Other:    other,
@@ -764,8 +776,8 @@ func formatJSON(summary *Summary, config *OutputConfig) string {
 			Files:    stats.Files,
 			Lines:    stats.Lines,
 			Code:     stats.Code,
-			Blanks:   stats.Blanks,
-			Comments: stats.Comments,
+			Blanks:   intPtr(stats.Blanks, inc),
+			Comments: intPtr(stats.Comments, inc),
 			Src:      src,
 			Test:     test,
 			Other:    other,

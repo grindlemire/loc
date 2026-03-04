@@ -231,7 +231,7 @@ func (c *Counter) countFile(path string) (*FileResult, error) {
 	}
 
 	// Count lines using streaming reader with buffer pool
-	err = c.countLinesStreaming(file, lang, result)
+	err = countLinesStreaming(file, lang, result)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +256,7 @@ func isBinaryFile(file *os.File) (bool, error) {
 
 // countLinesStreaming counts lines using buffered reading for memory efficiency.
 // Handles mixed line endings (LF, CRLF, CR) and files without trailing newline.
-func (c *Counter) countLinesStreaming(file *os.File, lang *Language, result *FileResult) error {
+func countLinesStreaming(file *os.File, lang *Language, result *FileResult) error {
 	// Get buffer from pool
 	bufPtr := bufferPool.Get().(*[]byte)
 	buf := *bufPtr
