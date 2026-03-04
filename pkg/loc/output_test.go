@@ -344,11 +344,11 @@ func TestJSONOutputStructure(t *testing.T) {
 	if result.Total.Code != 5511 {
 		t.Errorf("expected total.code = 5511, got %d", result.Total.Code)
 	}
-	if result.Total.Blanks != 555 {
-		t.Errorf("expected total.blanks = 555, got %d", result.Total.Blanks)
+	if result.Total.Blanks == nil || *result.Total.Blanks != 555 {
+		t.Errorf("expected total.blanks = 555, got %v", result.Total.Blanks)
 	}
-	if result.Total.Comments != 607 {
-		t.Errorf("expected total.comments = 607, got %d", result.Total.Comments)
+	if result.Total.Comments == nil || *result.Total.Comments != 607 {
+		t.Errorf("expected total.comments = 607, got %v", result.Total.Comments)
 	}
 
 	// Verify byLanguage is present (should always be included regardless of flags)
@@ -1393,5 +1393,61 @@ func TestCodeOnlyRawOutput(t *testing.T) {
 	}
 	if !strings.Contains(output, "Code:") {
 		t.Errorf("code-only output should contain 'Code:', got: %s", output)
+	}
+}
+
+func TestCodeOnlyPrettyOutput(t *testing.T) {
+	summary := createTestSummary()
+
+	config := &OutputConfig{
+		Format:   FormatPretty,
+		CodeOnly: true,
+	}
+
+	output := FormatOutput(summary, config)
+
+	// CodeOnly should suppress Comments column header
+	if strings.Contains(output, "Comments") {
+		t.Errorf("code-only pretty output should not contain 'Comments', got: %s", output)
+	}
+	// Should still contain Files and Code headers
+	if !strings.Contains(output, "Files") {
+		t.Errorf("code-only pretty output should contain 'Files', got: %s", output)
+	}
+	if !strings.Contains(output, "Code") {
+		t.Errorf("code-only pretty output should contain 'Code', got: %s", output)
+	}
+}
+
+func TestCodeOnlyJSONOutput(t *testing.T) {
+	summary := createTestSummary()
+
+	config := &OutputConfig{
+		Format:   FormatJSON,
+		CodeOnly: true,
+	}
+
+	output := FormatOutput(summary, config)
+
+	// CodeOnly should omit blanks and comments fields from JSON
+	if strings.Contains(output, `"blanks"`) {
+		t.Errorf("code-only JSON output should not contain 'blanks' field, got: %s", output)
+	}
+	if strings.Contains(output, `"comments"`) {
+		t.Errorf("code-only JSON output should not contain 'comments' field, got: %s", output)
+	}
+
+	// Should still contain files, lines, and code fields
+	if !strings.Contains(output, `"files"`) {
+		t.Errorf("code-only JSON output should contain 'files' field, got: %s", output)
+	}
+	if !strings.Contains(output, `"code"`) {
+		t.Errorf("code-only JSON output should contain 'code' field, got: %s", output)
+	}
+
+	// Verify it's valid JSON
+	var result map[string]any
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("code-only JSON output is not valid JSON: %v", err)
 	}
 }
