@@ -8,15 +8,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/urfave/cli/v3"
 )
 
 // TestCLIHelp tests that the help output is displayed correctly
 func TestCLIHelp(t *testing.T) {
 	var buf bytes.Buffer
 
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err := cmd.Run(context.Background(), []string{"loc", "--help"})
@@ -66,7 +64,7 @@ func main() {
 
 	var buf bytes.Buffer
 
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err = cmd.Run(context.Background(), []string{"loc", testDir})
@@ -108,7 +106,7 @@ func main() {}
 
 	var buf bytes.Buffer
 
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err = cmd.Run(context.Background(), []string{"loc", "--by-language", testDir})
@@ -144,7 +142,7 @@ func main() {}
 
 	var buf bytes.Buffer
 
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err = cmd.Run(context.Background(), []string{"loc", "--output", "json", testDir})
@@ -184,7 +182,7 @@ func main() {}
 
 	var buf bytes.Buffer
 
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err = cmd.Run(context.Background(), []string{"loc", "--output", "raw", testDir})
@@ -224,7 +222,7 @@ func TestMain() {}
 
 	var buf bytes.Buffer
 
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	// Exclude test files
@@ -262,7 +260,7 @@ more text
 
 	var buf bytes.Buffer
 
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	// Include only txt files (not normally a source file)
@@ -285,7 +283,7 @@ func TestCLIInvalidOutputFormat(t *testing.T) {
 
 	var buf bytes.Buffer
 
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err := cmd.Run(context.Background(), []string{"loc", "--output", "invalid", testDir})
@@ -325,7 +323,7 @@ func Lib() {}
 
 	var buf bytes.Buffer
 
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	// Use multiple breakdown flags
@@ -369,7 +367,7 @@ func main() {}
 
 	// First, test without --no-gitignore (should respect gitignore)
 	var buf1 bytes.Buffer
-	cmd1 := buildCLICommand()
+	cmd1 := buildCommand()
 	cmd1.Writer = &buf1
 
 	err = cmd1.Run(context.Background(), []string{"loc", "--output", "raw", testDir})
@@ -384,7 +382,7 @@ func main() {}
 
 	// Now test with --no-gitignore (should ignore gitignore)
 	var buf2 bytes.Buffer
-	cmd2 := buildCLICommand()
+	cmd2 := buildCommand()
 	cmd2.Writer = &buf2
 
 	err = cmd2.Run(context.Background(), []string{"loc", "--output", "raw", "--no-gitignore", testDir})
@@ -411,7 +409,7 @@ func main() {}
 
 	var buf bytes.Buffer
 
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	// Use short flags: -l for --by-language, -o for --output
@@ -434,7 +432,7 @@ func TestCLIEmptyDirectory(t *testing.T) {
 
 	var buf bytes.Buffer
 
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err := cmd.Run(context.Background(), []string{"loc", "--output", "raw", testDir})
@@ -454,100 +452,12 @@ func TestCLIEmptyDirectory(t *testing.T) {
 func TestCLINonexistentPath(t *testing.T) {
 	var buf bytes.Buffer
 
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err := cmd.Run(context.Background(), []string{"loc", "/nonexistent/path/that/should/not/exist"})
 	if err == nil {
 		t.Error("expected error for nonexistent path")
-	}
-}
-
-// buildCLICommand creates a CLI command for testing
-// This mirrors the setup in main() but returns the command for testing
-func buildCLICommand() *cli.Command {
-	return &cli.Command{
-		Name:    "loc",
-		Usage:   "A fast, parallel lines-of-code counter for software projects",
-		Version: "test",
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:    "by-language",
-				Aliases: []string{"l"},
-				Usage:   "Show breakdown by language",
-			},
-			&cli.BoolFlag{
-				Name:    "by-dir",
-				Aliases: []string{"d"},
-				Usage:   "Show breakdown by directory",
-			},
-			&cli.BoolFlag{
-				Name:    "by-package",
-				Aliases: []string{"p"},
-				Usage:   "Show breakdown by package",
-			},
-			&cli.BoolFlag{
-				Name:    "code-only",
-				Aliases: []string{"c"},
-				Usage:   "Only count code lines (exclude blanks/comments)",
-			},
-			&cli.StringFlag{
-				Name:    "output",
-				Aliases: []string{"o"},
-				Value:   "pretty",
-				Usage:   "Output format: pretty, json, raw",
-			},
-			&cli.StringSliceFlag{
-				Name:    "include",
-				Aliases: []string{"i"},
-				Usage:   "Additional glob patterns to include",
-			},
-			&cli.StringSliceFlag{
-				Name:    "exclude",
-				Aliases: []string{"e"},
-				Usage:   "Glob patterns to exclude",
-			},
-			&cli.BoolFlag{
-				Name:  "no-gitignore",
-				Usage: "Don't respect .gitignore files",
-			},
-			&cli.IntFlag{
-				Name:    "workers",
-				Aliases: []string{"w"},
-				Value:   4,
-				Usage:   "Number of parallel workers",
-			},
-			&cli.BoolFlag{
-				Name:  "no-color",
-				Usage: "Disable colored output",
-			},
-			&cli.BoolFlag{
-				Name:  "combined",
-				Usage: "Combine src/test/other into single totals (disable breakdown)",
-			},
-			&cli.BoolFlag{
-				Name:    "all",
-				Aliases: []string{"a"},
-				Usage:   "Include non-source files (config, markdown, etc.)",
-			},
-			&cli.BoolFlag{
-				Name:  "no-tests",
-				Usage: "Exclude test files from counting",
-			},
-			&cli.BoolFlag{
-				Name:  "tests-only",
-				Usage: "Only count test files",
-			},
-			&cli.StringSliceFlag{
-				Name:  "lang",
-				Usage: "Include only specified languages (comma-separated or repeated, e.g. --lang Go,Python)",
-			},
-			&cli.StringSliceFlag{
-				Name:  "exclude-lang",
-				Usage: "Exclude specified languages (comma-separated or repeated, e.g. --exclude-lang Go)",
-			},
-		},
-		Action: run,
 	}
 }
 
@@ -566,7 +476,7 @@ func main() {}
 
 	var buf bytes.Buffer
 
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err = cmd.Run(context.Background(), []string{"loc", "--no-color", testDir})
@@ -608,7 +518,7 @@ func main() {}
 
 	var buf bytes.Buffer
 
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err = cmd.Run(context.Background(), []string{"loc", "--no-color", "--by-language", testDir})
@@ -657,7 +567,7 @@ func TestMain() {}
 
 	t.Run("default shows src/test breakdown", func(t *testing.T) {
 		var buf bytes.Buffer
-		cmd := buildCLICommand()
+		cmd := buildCommand()
 		cmd.Writer = &buf
 
 		err = cmd.Run(context.Background(), []string{"loc", testDir})
@@ -678,7 +588,7 @@ func TestMain() {}
 
 	t.Run("combined hides src/test breakdown", func(t *testing.T) {
 		var buf bytes.Buffer
-		cmd := buildCLICommand()
+		cmd := buildCommand()
 		cmd.Writer = &buf
 
 		err = cmd.Run(context.Background(), []string{"loc", "--combined", testDir})
@@ -733,7 +643,7 @@ This is documentation.
 
 	t.Run("without all flag", func(t *testing.T) {
 		var buf bytes.Buffer
-		cmd := buildCLICommand()
+		cmd := buildCommand()
 		cmd.Writer = &buf
 
 		err = cmd.Run(context.Background(), []string{"loc", "--output", "raw", testDir})
@@ -751,7 +661,7 @@ This is documentation.
 
 	t.Run("with all flag", func(t *testing.T) {
 		var buf bytes.Buffer
-		cmd := buildCLICommand()
+		cmd := buildCommand()
 		cmd.Writer = &buf
 
 		err = cmd.Run(context.Background(), []string{"loc", "--output", "raw", "--all", testDir})
@@ -774,7 +684,7 @@ This is documentation.
 
 	t.Run("with all flag short form", func(t *testing.T) {
 		var buf bytes.Buffer
-		cmd := buildCLICommand()
+		cmd := buildCommand()
 		cmd.Writer = &buf
 
 		err = cmd.Run(context.Background(), []string{"loc", "--output", "raw", "-a", testDir})
@@ -813,7 +723,7 @@ func TestMain() {}
 	}
 
 	var buf bytes.Buffer
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err = cmd.Run(context.Background(), []string{"loc", testDir})
@@ -859,7 +769,7 @@ func TestMain() {}
 	}
 
 	var buf bytes.Buffer
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err = cmd.Run(context.Background(), []string{"loc", "--output", "json", testDir})
@@ -919,7 +829,7 @@ func TestMain() {}
 	}
 
 	var buf bytes.Buffer
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err = cmd.Run(context.Background(), []string{"loc", "--output", "json", "--combined", testDir})
@@ -953,7 +863,7 @@ func TestMain() {}
 func TestCLIHelpShowsNewFlags(t *testing.T) {
 	var buf bytes.Buffer
 
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err := cmd.Run(context.Background(), []string{"loc", "--help"})
@@ -989,7 +899,7 @@ func TestCLINoTestsFlag(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err = cmd.Run(context.Background(), []string{"loc", "--output", "raw", "--no-tests", testDir})
@@ -1017,7 +927,7 @@ func TestCLITestsOnlyFlag(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err = cmd.Run(context.Background(), []string{"loc", "--output", "raw", "--tests-only", testDir})
@@ -1041,7 +951,7 @@ func TestCLINoTestsAndTestsOnlyMutuallyExclusive(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err = cmd.Run(context.Background(), []string{"loc", "--no-tests", "--tests-only", testDir})
@@ -1071,7 +981,7 @@ func TestCLILangFilter(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err = cmd.Run(context.Background(), []string{"loc", "--output", "raw", "--lang", "Go", testDir})
@@ -1103,7 +1013,7 @@ func TestCLILangFilterCommaSeparated(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err = cmd.Run(context.Background(), []string{"loc", "--output", "raw", "--lang", "Go,Python", testDir})
@@ -1135,7 +1045,7 @@ func TestCLIExcludeLangFilter(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err = cmd.Run(context.Background(), []string{"loc", "--output", "raw", "--exclude-lang", "Go", testDir})
@@ -1152,7 +1062,7 @@ func TestCLIExcludeLangFilter(t *testing.T) {
 // TestCLIHelpShowsFilterFlags tests that help output includes the new filter flags
 func TestCLIHelpShowsFilterFlags(t *testing.T) {
 	var buf bytes.Buffer
-	cmd := buildCLICommand()
+	cmd := buildCommand()
 	cmd.Writer = &buf
 
 	err := cmd.Run(context.Background(), []string{"loc", "--help"})

@@ -17,7 +17,15 @@ import (
 var Version = "dev"
 
 func main() {
-	cmd := &cli.Command{
+	cmd := buildCommand()
+	if err := cmd.Run(context.Background(), os.Args); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func buildCommand() *cli.Command {
+	return &cli.Command{
 		Name:    "loc",
 		Usage:   "A fast, parallel lines-of-code counter for software projects",
 		Version: Version,
@@ -99,11 +107,6 @@ func main() {
 			},
 		},
 		Action: run,
-	}
-
-	if err := cmd.Run(context.Background(), os.Args); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
 	}
 }
 
